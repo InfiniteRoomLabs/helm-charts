@@ -1,0 +1,63 @@
+# irl-postgres -- CloudNativePG-managed PostgreSQL
+#
+# This chart installs the CNPG operator and creates a Cluster custom resource.
+# Uses official postgres images (not Bitnami).
+
+# -- Whether to install the CNPG operator (disable if already installed)
+operator:
+  enabled: true
+
+# -- PostgreSQL cluster configuration
+cluster:
+  # -- Cluster name (also used as the primary service name)
+  name: postgresql
+  # -- Number of instances (1 for single-node homelab, 3 for HA)
+  instances: 1
+  # -- PostgreSQL major version
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  # -- Storage configuration
+  storage:
+    size: 50Gi
+    storageClass: ""
+  # -- Resource limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  # -- PostgreSQL parameters (tuning)
+  postgresql:
+    parameters:
+      shared_buffers: "512MB"
+      effective_cache_size: "1536MB"
+      work_mem: "16MB"
+      maintenance_work_mem: "128MB"
+      max_connections: "100"
+      password_encryption: "scram-sha-256"
+    pg_hba:
+      - "host all all 10.42.0.0/16 scram-sha-256"
+
+  # -- Superuser secret (must contain 'username' and 'password' keys)
+  superuserSecret:
+    name: postgres-superuser
+
+  # -- Bootstrap: create databases on first init
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+
+  # -- Monitoring (Prometheus PodMonitor)
+  monitoring:
+    enabled: true
+
+  # -- NodePort for external access (0 = ClusterIP only)
+  nodePort: 0
+
+# -- Additional databases to create (via post-install Job)
+databases: []
+  # - name: gitea
+  #   owner: gitea
+  #   secretName: postgres-gitea

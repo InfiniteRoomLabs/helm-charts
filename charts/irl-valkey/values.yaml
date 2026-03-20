@@ -1,0 +1,49 @@
+# irl-valkey -- Valkey (Redis-compatible) with sensible defaults
+#
+# Wire-compatible with Redis clients. Uses official Valkey images.
+# Auth via existingSecret pattern (no plaintext passwords in values).
+
+valkey:
+  # -- Architecture: standalone or replication
+  architecture: standalone
+
+  auth:
+    # -- Enable authentication
+    enabled: true
+    # -- Use an existing Kubernetes Secret for the password
+    # Secret must contain a key named 'valkey-password' (or 'redis-password')
+    existingSecret: "redis-auth"
+    existingSecretPasswordKey: "redis-password"
+
+  master:
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+    persistence:
+      enabled: true
+      size: 2Gi
+
+    # -- Valkey configuration overrides
+    configuration: |
+      maxmemory 200mb
+      maxmemory-policy allkeys-lru
+      appendonly yes
+      appendfsync everysec
+
+  # -- No replicas for single-node homelab
+  replica:
+    replicaCount: 0
+
+  # -- Metrics exporter for Prometheus scraping
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  # -- Network policy (optional, for Calico/kube-router enforcement)
+  networkPolicy:
+    enabled: false

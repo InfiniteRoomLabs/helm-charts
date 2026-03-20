@@ -1,0 +1,13 @@
+# Helm
+charts/*/charts/
+*.tgz
+
+# Agent directories
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.gemini/
+
+# OS
+.DS_Store

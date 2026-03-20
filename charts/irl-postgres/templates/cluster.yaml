@@ -1,0 +1,57 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-postgres.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.cluster.instances }}
+  imageName: {{ .Values.cluster.imageName }}
+
+  storage:
+    size: {{ .Values.cluster.storage.size }}
+    {{- if .Values.cluster.storage.storageClass }}
+    storageClassName: {{ .Values.cluster.storage.storageClass }}
+    {{- end }}
+
+  resources:
+    {{- toYaml .Values.cluster.resources | nindent 4 }}
+
+  postgresql:
+    parameters:
+      {{- range $key, $val := .Values.cluster.postgresql.parameters }}
+      {{ $key }}: {{ $val | quote }}
+      {{- end }}
+    pg_hba:
+      {{- range .Values.cluster.postgresql.pg_hba }}
+      - {{ . | quote }}
+      {{- end }}
+
+  superuserSecret:
+    name: {{ .Values.cluster.superuserSecret.name }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.cluster.bootstrap.initdb.database }}
+      owner: {{ .Values.cluster.bootstrap.initdb.owner }}
+
+  {{- if .Values.cluster.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+
+  {{- if gt (int .Values.cluster.nodePort) 0 }}
+  managed:
+    services:
+      additional:
+        - selectorType: rw
+          serviceTemplate:
+            metadata:
+              name: {{ .Values.cluster.name }}-nodeport
+            spec:
+              type: NodePort
+              ports:
+                - port: 5432
+                  nodePort: {{ .Values.cluster.nodePort }}
+  {{- end }}

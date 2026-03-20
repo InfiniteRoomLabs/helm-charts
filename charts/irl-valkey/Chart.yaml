@@ -1,0 +1,22 @@
+apiVersion: v2
+name: irl-valkey
+description: Valkey (Redis-compatible) with auth and tuning defaults. Replaces Bitnami Redis.
+type: application
+version: 0.1.0
+appVersion: "8.1"
+keywords:
+  - valkey
+  - redis
+  - cache
+  - key-value
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/InfiniteRoomLabs/helm-charts
+maintainers:
+  - name: Infinite Room Labs
+    url: https://infiniteroomlabs.com
+
+dependencies:
+  - name: valkey
+    version: "0.3.18"
+    repository: "https://valkey-io.github.io/valkey-helm/"

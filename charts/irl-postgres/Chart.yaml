@@ -1,0 +1,23 @@
+apiVersion: v2
+name: irl-postgres
+description: PostgreSQL via CloudNativePG operator. Replaces Bitnami postgresql chart.
+type: application
+version: 0.1.0
+appVersion: "16"
+keywords:
+  - postgresql
+  - database
+  - cloudnative-pg
+  - cnpg
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/InfiniteRoomLabs/helm-charts
+maintainers:
+  - name: Infinite Room Labs
+    url: https://infiniteroomlabs.com
+
+dependencies:
+  - name: cloudnative-pg
+    version: "0.22.0"
+    repository: "https://cloudnative-pg.github.io/charts"
+    condition: operator.enabled
