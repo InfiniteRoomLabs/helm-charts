@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0] - 2026-03-21
+
+### Changed
+
+- `irl-postgres` v0.2.0: Remove broken Job-based database creation. CNPG manages superuser credentials internally; databases are created via kubectl exec in the Ansible playbook. Bump CNPG dependency to 0.27.1.
+- `irl-valkey` v0.2.0: Fix chart dependency version (0.3.18 -> 0.8.1) and rewrite values to match Valkey chart's actual API (ACL auth, valkeyConfig, dataStorage).
+
 ## [0.1.0] - 2026-03-20
 
 ### Added

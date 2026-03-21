@@ -1,52 +1,9 @@
-{{- range .Values.databases }}
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: create-db-{{ .name }}
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    {{- include "irl-postgres.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "10"
-    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
-spec:
-  template:
-    spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: create-db
-          image: {{ $.Values.cluster.imageName }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              until pg_isready -h {{ $.Values.cluster.name }}-rw -U postgres; do
-                echo "Waiting for PostgreSQL..."
-                sleep 2
-              done
-              psql -h {{ $.Values.cluster.name }}-rw -U postgres -tc \
-                "SELECT 1 FROM pg_database WHERE datname='{{ .name }}'" | grep -q 1 || \
-                psql -h {{ $.Values.cluster.name }}-rw -U postgres -c \
-                "CREATE DATABASE {{ .name }};"
-              psql -h {{ $.Values.cluster.name }}-rw -U postgres -tc \
-                "SELECT 1 FROM pg_roles WHERE rolname='{{ .owner | default .name }}'" | grep -q 1 || \
-                psql -h {{ $.Values.cluster.name }}-rw -U postgres -c \
-                "CREATE USER {{ .owner | default .name }} WITH PASSWORD '$(cat /secrets/password)';
-                 GRANT ALL PRIVILEGES ON DATABASE {{ .name }} TO {{ .owner | default .name }};"
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $.Values.cluster.superuserSecret.name }}
-                  key: password
-          volumeMounts:
-            - name: db-secret
-              mountPath: /secrets
-              readOnly: true
-      volumes:
-        - name: db-secret
-          secret:
-            secretName: {{ .secretName }}
-{{- end }}
+{{/*
+Database creation is handled outside Helm.
+CNPG manages superuser credentials internally (peer auth via unix socket).
+Databases are created via the helm-deploy.yml Ansible playbook using
+kubectl exec into the CNPG primary pod.
+
+To create databases manually:
+  kubectl exec -n irl postgresql-1 -c postgres -- psql -U postgres -c "CREATE DATABASE mydb OWNER myuser;"
+*/}}

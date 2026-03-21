@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-valkey
 description: Valkey (Redis-compatible) with auth and tuning defaults. Replaces Bitnami Redis.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "8.1"
 keywords:
   - valkey
@@ -18,5 +18,5 @@ maintainers:
 
 dependencies:
   - name: valkey
-    version: "0.3.18"
+    version: "0.8.1"
     repository: "https://valkey-io.github.io/valkey-helm/"

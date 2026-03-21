@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-postgres
 description: PostgreSQL via CloudNativePG operator. Replaces Bitnami postgresql chart.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "16"
 keywords:
   - postgresql
