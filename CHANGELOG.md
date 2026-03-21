@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-03-21
+
+### Added
+
+- `irl-gitea` v0.1.0: Gitea wrapper chart with external CNPG PostgreSQL + Valkey. Disables bundled Bitnami subcharts.
+- `irl-monitoring` v0.1.0: Monitoring umbrella chart bundling kube-prometheus-stack + Loki SingleBinary.
+
 ## [0.2.0] - 2026-03-21
 
 ### Changed

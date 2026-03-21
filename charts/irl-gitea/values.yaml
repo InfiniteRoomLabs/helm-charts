@@ -1,0 +1,76 @@
+# irl-gitea -- Gitea with external CNPG PostgreSQL + Valkey
+#
+# Disables bundled Bitnami PostgreSQL/Redis subcharts.
+# Connects to cluster-level CNPG and Valkey services instead.
+
+gitea:
+  image:
+    tag: "1.22"
+
+  replicaCount: 1
+
+  admin:
+    existingSecret: gitea-admin
+
+  service:
+    http:
+      type: NodePort
+      port: 3000
+      nodePort: 30300
+    ssh:
+      type: NodePort
+      port: 22
+      nodePort: 30022
+
+  gitea:
+    config:
+      server:
+        DOMAIN: "git.lab.infiniteroomlabs.cloud"
+        ROOT_URL: "https://git.lab.infiniteroomlabs.cloud"
+        HTTP_PORT: 3000
+        SSH_DOMAIN: "git.lab.infiniteroomlabs.cloud"
+        SSH_PORT: 30022
+        LFS_START_SERVER: true
+      database:
+        DB_TYPE: postgres
+        HOST: "postgresql-rw:5432"
+        NAME: gitea
+        USER: gitea
+        # PASSWD injected via gitea.config.database.PASSWD in helm install
+      cache:
+        ADAPTER: redis
+        # HOST injected via gitea.config.cache.HOST in helm install
+      session:
+        PROVIDER: redis
+        # PROVIDER_CONFIG injected in helm install
+      queue:
+        TYPE: redis
+        # CONN_STR injected in helm install
+      security:
+        INSTALL_LOCK: true
+      service:
+        DISABLE_REGISTRATION: false
+        REQUIRE_SIGNIN_VIEW: false
+      metrics:
+        ENABLED: true
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+
+  # Disable bundled databases -- using cluster-level CNPG + Valkey
+  postgresql:
+    enabled: false
+  postgresql-ha:
+    enabled: false
+  redis-cluster:
+    enabled: false
