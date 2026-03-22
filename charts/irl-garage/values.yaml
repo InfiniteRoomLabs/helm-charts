@@ -1,0 +1,97 @@
+# irl-garage/values.yaml
+# ======================
+# Garage S3-compatible object storage.
+# https://garagehq.deuxfleurs.fr/
+
+image:
+  repository: dxflrs/garage
+  tag: "v1.3.1"
+  pullPolicy: IfNotPresent
+
+# Garage configuration
+config:
+  # Metadata engine (lmdb is fastest)
+  metadataEngine: lmdb
+  # Replication mode: 1 = single node (ZFS handles disk redundancy)
+  replicationMode: "1"
+  # S3 region (must match client config or boto3 returns 403)
+  s3Region: "garage"
+  # Block size for data storage
+  blockSize: "10M"
+  # Disable Garage-level compression (ZFS lz4 handles it)
+  compressionLevel: 0
+
+# Resource limits
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+# Persistence -- ZFS-backed PVs created by k3s.yml
+persistence:
+  data:
+    enabled: true
+    existingClaim: garage-data-pvc
+    mountPath: /var/lib/garage/data
+  meta:
+    enabled: true
+    existingClaim: garage-meta-pvc
+    mountPath: /var/lib/garage/meta
+
+# Service -- ClusterIP for internal access, NodePort for external
+service:
+  s3:
+    port: 3900
+    type: ClusterIP
+  web:
+    port: 3902
+    type: ClusterIP
+  admin:
+    port: 3903
+    type: ClusterIP
+  rpc:
+    port: 3901
+
+# RPC secret -- must be provided via existingSecret
+rpcSecret:
+  existingSecret: "garage-rpc-secret"
+  key: "rpc-secret"
+
+# Admin token -- for admin API access
+adminToken:
+  existingSecret: "garage-admin-secret"
+  key: "admin-token"
+
+# Metrics token -- for Prometheus scraping
+metricsToken:
+  existingSecret: "garage-admin-secret"
+  key: "metrics-token"
+
+# Web UI (garage-webui by khairul169, NLnet-funded)
+webui:
+  enabled: true
+  image:
+    repository: khairul169/garage-webui
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 3909
+    nodePort: 30039
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+# Node scheduling -- runs on homelab (data tier, ZFS)
+nodeSelector:
+  irl.dev/tier: data
+
+tolerations: []
+affinity: {}

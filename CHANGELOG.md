@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-03-22
+
+### Added
+
+- `irl-garage` v0.1.0: Garage S3-compatible object storage with ZFS-backed data, SSD metadata, garage-webui sidecar (NLnet-funded), NodePort for Tailscale-only admin access. Replaces MinIO for Plane file storage.
+
 ## [0.3.0] - 2026-03-21
 
 ### Added

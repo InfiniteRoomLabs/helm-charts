@@ -1,0 +1,13 @@
+apiVersion: v2
+name: irl-garage
+description: Garage S3-compatible object storage for IRL homelab
+type: application
+version: 0.1.0
+appVersion: "1.3.1"
+keywords:
+  - s3
+  - object-storage
+  - garage
+  - storage
+maintainers:
+  - name: Infinite Room Labs
