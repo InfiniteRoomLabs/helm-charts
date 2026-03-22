@@ -13,6 +13,8 @@ data:
 
     replication_factor = {{ .Values.config.replicationMode }}
 
+    rpc_bind_addr = "[::]:{{ .Values.service.rpc.port }}"
+
     [s3_api]
     s3_region = "{{ .Values.config.s3Region }}"
     api_bind_addr = "[::]:{{ .Values.service.s3.port }}"
@@ -23,6 +25,3 @@ data:
 
     [admin]
     api_bind_addr = "[::]:{{ .Values.service.admin.port }}"
-
-    [rpc]
-    bind_addr = "[::]:{{ .Values.service.rpc.port }}"
