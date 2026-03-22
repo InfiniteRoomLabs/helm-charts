@@ -12,7 +12,7 @@ image:
 config:
   # Ollama integration for embeddings + VLM
   embedding:
-    provider: "openai"
+    provider: "ollama"
     model: "nomic-embed-text:latest"
     apiBase: "http://ollama.irl.svc.cluster.local:11434/v1"
     apiKey: "ollama"

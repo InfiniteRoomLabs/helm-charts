@@ -26,14 +26,14 @@ data:
         }
       },
       "embedding": {
+        "max_concurrent": 10,
         "dense": {
           "provider": "{{ .Values.config.embedding.provider }}",
           "api_key": "{{ .Values.config.embedding.apiKey }}",
           "api_base": "{{ .Values.config.embedding.apiBase }}",
           "model": "{{ .Values.config.embedding.model }}",
           "dimension": {{ .Values.config.embedding.dimension }},
-          "batch_size": {{ .Values.config.embedding.batchSize }},
-          "max_concurrent": 10
+          "batch_size": {{ .Values.config.embedding.batchSize }}
         }
       },
       "vlm": {
@@ -44,7 +44,7 @@ data:
         "max_concurrent": 10,
         "stream": false
       },
-      "logging": {
+      "log": {
         "level": "INFO",
         "output": "stdout"
       }
