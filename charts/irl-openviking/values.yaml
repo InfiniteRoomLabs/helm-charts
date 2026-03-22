@@ -35,8 +35,11 @@ apiKey:
   key: "root-api-key"
 
 # MCP sidecar (separate process for Claude Code integration)
+# Disabled: MCP server is in examples/mcp-query/, not packaged in the
+# official Docker image. Needs a custom image build to enable.
+# Access OpenViking via REST API at port 1933 instead.
 mcp:
-  enabled: true
+  enabled: false
   image:
     repository: ghcr.io/volcengine/openviking
     tag: "v0.2.9"
