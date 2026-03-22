@@ -5,6 +5,7 @@
 ### Added
 
 - `irl-garage` v0.1.0: Garage S3-compatible object storage with ZFS-backed data, SSD metadata, garage-webui sidecar (NLnet-funded), NodePort for Tailscale-only admin access. Replaces MinIO for Plane file storage.
+- `irl-garage` v0.1.1: Fix configmap -- add required `root_domain` for s3_web section (`.s3.internal.lab.infiniteroomlabs.cloud`).
 
 ## [0.3.0] - 2026-03-21
 

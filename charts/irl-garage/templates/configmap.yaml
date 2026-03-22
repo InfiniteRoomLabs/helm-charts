@@ -19,6 +19,7 @@ data:
 
     [s3_web]
     bind_addr = "[::]:{{ .Values.service.web.port }}"
+    root_domain = ".s3.internal.lab.infiniteroomlabs.cloud"
 
     [admin]
     api_bind_addr = "[::]:{{ .Values.service.admin.port }}"
