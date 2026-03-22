@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: openviking
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.api.type }}
+  ports:
+    - name: api
+      port: {{ .Values.service.api.port }}
+      targetPort: api
+    {{- if .Values.mcp.enabled }}
+    - name: mcp
+      port: {{ .Values.service.mcp.port }}
+      targetPort: mcp
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: openviking
+    app.kubernetes.io/instance: {{ .Release.Name }}

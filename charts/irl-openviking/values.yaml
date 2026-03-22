@@ -1,0 +1,83 @@
+# irl-openviking/values.yaml
+# ==========================
+# OpenViking context database with MCP sidecar.
+# https://github.com/volcengine/OpenViking
+
+image:
+  repository: ghcr.io/volcengine/openviking
+  tag: "v0.2.9"
+  pullPolicy: IfNotPresent
+
+# OpenViking configuration
+config:
+  # Ollama integration for embeddings + VLM
+  embedding:
+    provider: "openai"
+    model: "nomic-embed-text:latest"
+    apiBase: "http://ollama.irl.svc.cluster.local:11434/v1"
+    apiKey: "ollama"
+    dimension: 768
+    batchSize: 32
+  vlm:
+    provider: "litellm"
+    model: "ollama/llama3.2"
+    apiBase: "http://ollama.irl.svc.cluster.local:11434"
+    apiKey: "ollama"
+  # Storage backends
+  storage:
+    agfsBackend: "local"
+    vectordbBackend: "local"
+    workspace: "/data/openviking"
+
+# API key -- must be provided via existingSecret
+apiKey:
+  existingSecret: "openviking-api-key"
+  key: "root-api-key"
+
+# MCP sidecar (separate process for Claude Code integration)
+mcp:
+  enabled: true
+  image:
+    repository: ghcr.io/volcengine/openviking
+    tag: "v0.2.9"
+    pullPolicy: IfNotPresent
+  port: 2033
+
+# Services
+service:
+  api:
+    port: 1933
+    type: ClusterIP
+  mcp:
+    port: 2033
+    type: ClusterIP
+
+# Persistence -- ZFS-backed PV
+persistence:
+  enabled: true
+  existingClaim: openviking-data-pvc
+  size: 20Gi
+
+# Resources
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+mcpResources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Schedule on homelab (needs Ollama access, ZFS storage)
+nodeSelector:
+  irl.dev/tier: data
+
+tolerations: []
+affinity: {}

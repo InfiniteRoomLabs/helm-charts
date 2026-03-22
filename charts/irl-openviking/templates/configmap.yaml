@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app.kubernetes.io/name: openviking
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  ov.conf: |
+    {
+      "server": {
+        "host": "0.0.0.0",
+        "port": {{ .Values.service.api.port }},
+        "cors_origins": ["*"]
+      },
+      "storage": {
+        "workspace": "{{ .Values.config.storage.workspace }}",
+        "agfs": {
+          "backend": "{{ .Values.config.storage.agfsBackend }}",
+          "mode": "binding-client"
+        },
+        "vectordb": {
+          "backend": "{{ .Values.config.storage.vectordbBackend }}",
+          "name": "context",
+          "dimension": {{ .Values.config.embedding.dimension }}
+        }
+      },
+      "embedding": {
+        "dense": {
+          "provider": "{{ .Values.config.embedding.provider }}",
+          "api_key": "{{ .Values.config.embedding.apiKey }}",
+          "api_base": "{{ .Values.config.embedding.apiBase }}",
+          "model": "{{ .Values.config.embedding.model }}",
+          "dimension": {{ .Values.config.embedding.dimension }},
+          "batch_size": {{ .Values.config.embedding.batchSize }},
+          "max_concurrent": 10
+        }
+      },
+      "vlm": {
+        "provider": "{{ .Values.config.vlm.provider }}",
+        "api_key": "{{ .Values.config.vlm.apiKey }}",
+        "api_base": "{{ .Values.config.vlm.apiBase }}",
+        "model": "{{ .Values.config.vlm.model }}",
+        "max_concurrent": 10,
+        "stream": false
+      },
+      "logging": {
+        "level": "INFO",
+        "output": "stdout"
+      }
+    }
