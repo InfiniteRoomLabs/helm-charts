@@ -34,11 +34,22 @@ spec:
         - name: openviking
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              # Inject API key from env into config (ConfigMap is read-only)
+              cp /config/ov.conf /tmp/ov.conf
+              python3 -c "
+              import json, os
+              with open('/tmp/ov.conf') as f: c = json.load(f)
+              c['server']['root_api_key'] = os.environ['OPENVIKING_ROOT_API_KEY']
+              with open('/tmp/ov.conf', 'w') as f: json.dump(c, f, indent=2)
+              "
+              export OPENVIKING_CONFIG_FILE=/tmp/ov.conf
+              exec openviking-server
           env:
             - name: HOME
               value: /tmp
-            - name: OPENVIKING_CONFIG_FILE
-              value: /config/ov.conf
             - name: OPENVIKING_ROOT_API_KEY
               valueFrom:
                 secretKeyRef:
