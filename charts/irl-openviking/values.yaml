@@ -50,7 +50,8 @@ mcp:
 service:
   api:
     port: 1933
-    type: ClusterIP
+    type: NodePort
+    nodePort: 31933
   mcp:
     port: 2033
     type: ClusterIP

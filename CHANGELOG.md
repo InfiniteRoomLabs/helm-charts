@@ -7,7 +7,8 @@
 - `irl-garage` v0.1.0: Garage S3-compatible object storage with ZFS-backed data, SSD metadata, garage-webui sidecar (NLnet-funded), NodePort for Tailscale-only admin access. Replaces MinIO for Plane file storage.
 - `irl-garage` v0.1.1: Fix configmap -- add required `root_domain` for s3_web, move `rpc_bind_addr` to top-level (Garage v1.3.1 config format).
 - `irl-openviking` v0.1.0: OpenViking context database with Ollama embedding integration (nomic-embed-text), MCP sidecar for Claude Code, ZFS-backed persistence.
-- `irl-openviking` v0.1.1: Fix config schema (max_concurrent, log, ollama provider), root_api_key runtime injection, disable MCP sidecar (not packaged in official image).
+- `irl-openviking` v0.1.1: Fix config schema, root_api_key injection, disable MCP sidecar.
+- `irl-openviking` v0.1.2: Switch API to NodePort 31933 for Caddy access at `context.internal.lab.infiniteroomlabs.cloud`.
 
 ## [0.3.0] - 2026-03-21
 
