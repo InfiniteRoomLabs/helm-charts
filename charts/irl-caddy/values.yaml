@@ -1,0 +1,70 @@
+# irl-caddy/values.yaml
+# =====================
+# Caddy reverse proxy with Let's Encrypt DNS-01 via Cloudflare.
+# Custom image built with caddy-dns/cloudflare + certmagic-s3.
+
+image:
+  repository: irl-caddy
+  tag: "2.11.2-custom"
+  pullPolicy: Never  # Local image imported via k3s ctr
+
+# Network -- hostNetwork required to bind ports 80/443 on the node
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
+
+# Resource limits
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+
+# Persistence -- cert storage (internal CA data, ACME certs)
+persistence:
+  enabled: true
+  existingClaim: caddy-data-pvc
+  mountPath: /data
+
+# Caddy admin API -- bound to all interfaces for Prometheus scraping
+admin:
+  port: 2019
+
+# Cloudflare DNS-01 credentials
+cloudflare:
+  existingSecret: "caddy-cloudflare-token"
+  key: "api-token"
+
+# Garage S3 cert storage (for certmagic-s3, used by caddy-public)
+garageS3:
+  enabled: false
+  existingSecret: "caddy-garage-s3"
+  accessKeyField: "access-key"
+  secretKeyField: "secret-key"
+
+# ConfigMap -- Caddyfile is managed externally by Ansible
+# The ConfigMap name is: {{ .Release.Name }}-config
+# Ansible creates this ConfigMap before Helm deploys the chart.
+caddyfile:
+  # When true, Ansible manages the ConfigMap separately
+  externalConfigMap: false
+
+# Service -- ClusterIP for Prometheus scraping of admin/metrics
+service:
+  type: ClusterIP
+  port: 2019
+
+# ServiceMonitor for kube-prometheus-stack
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  labels:
+    release: monitoring
+
+# Node scheduling -- runs on homelab data tier
+nodeSelector:
+  irl.dev/tier: data
+
+tolerations: []
+affinity: {}

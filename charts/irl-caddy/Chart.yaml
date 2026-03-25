@@ -1,0 +1,13 @@
+apiVersion: v2
+name: irl-caddy
+description: Caddy reverse proxy for IRL homelab (hostNetwork, LE DNS-01)
+type: application
+version: 0.1.0
+appVersion: "2.11.2"
+keywords:
+  - caddy
+  - reverse-proxy
+  - tls
+  - dns-01
+maintainers:
+  - name: Infinite Room Labs

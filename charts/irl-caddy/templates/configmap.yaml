@@ -1,0 +1,18 @@
+{{- if not .Values.caddyfile.externalConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app.kubernetes.io/name: caddy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  Caddyfile: |
+    # Placeholder -- replace via Ansible template or helm upgrade --set-file
+    {
+        admin :{{ .Values.admin.port }}
+    }
+    :80 {
+        respond "Caddy is running" 200
+    }
+{{- end }}
