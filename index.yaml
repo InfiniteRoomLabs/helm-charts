@@ -3,6 +3,23 @@ entries:
   irl-caddy:
   - apiVersion: v2
     appVersion: 2.11.2
+    created: "2026-03-25T16:45:25.951287029Z"
+    description: Caddy reverse proxy for IRL homelab (hostNetwork, LE DNS-01)
+    digest: 88667d854d8972c0659d975d562f003e2b26f9b1f6acfcf5b39fd016e59065fc
+    keywords:
+    - caddy
+    - reverse-proxy
+    - tls
+    - dns-01
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-caddy
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-caddy-0.2.0/irl-caddy-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 2.11.2
     created: "2026-03-25T16:14:58.035139253Z"
     description: Caddy reverse proxy for IRL homelab (hostNetwork, LE DNS-01)
     digest: e9834b71ef47cf45aa7e53cb1358bfb233fec524243fc406a65749c63c8494cd
@@ -161,4 +178,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-valkey-0.2.0/irl-valkey-0.2.0.tgz
     version: 0.2.0
-generated: "2026-03-25T16:14:59.260744084Z"
+generated: "2026-03-25T16:45:25.951301095Z"
