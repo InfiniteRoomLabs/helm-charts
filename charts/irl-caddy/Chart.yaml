@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-caddy
 description: Caddy reverse proxy for IRL homelab (hostNetwork, LE DNS-01)
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "2.11.2"
 keywords:
   - caddy
