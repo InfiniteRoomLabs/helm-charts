@@ -36,9 +36,18 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
+      {{- if .Values.persistence.enabled }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.37
+          command: ["sh", "-c", "chown -R 1000:1000 {{ .Values.persistence.mountPath }}"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+      {{- end }}
       containers:
         - name: caddy
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -89,13 +98,13 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           readinessProbe:
             httpGet:
-              path: /health
+              path: /config/
               port: admin
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /config/
               port: admin
             initialDelaySeconds: 10
             periodSeconds: 20
