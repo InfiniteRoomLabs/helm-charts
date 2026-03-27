@@ -1,0 +1,89 @@
+# irl-vaultwarden -- Vaultwarden with external CNPG PostgreSQL + SendGrid SMTP
+#
+# Wraps guerzon/vaultwarden chart.
+# Disables bundled database; connects to cluster-level CNPG.
+
+vaultwarden:
+  image:
+    registry: docker.io
+    repository: vaultwarden/server
+    tag: "1.35.4-alpine"
+
+  domain: "https://passwords.lab.infiniteroomlabs.cloud"
+
+  signupsAllowed: false
+  invitationsAllowed: true
+  showPassHint: false
+
+  # Admin panel -- token provided via existingSecret
+  adminToken:
+    existingSecret: "vaultwarden-admin"
+    existingSecretKey: "admin-token"
+
+  # Database -- external PostgreSQL via CNPG
+  database:
+    type: "postgresql"
+    existingSecret: "postgres-vaultwarden"
+    existingSecretKey: "password"
+    host: "postgresql-rw"
+    port: "5432"
+    dbName: "vaultwarden"
+    username: "vaultwarden"
+
+  # SMTP via SendGrid relay
+  smtp:
+    existingSecret: "sendgrid-credentials"
+    host: "smtp.sendgrid.net"
+    from: "no-reply@infiniteroomlabs.com"
+    fromName: "Vaultwarden"
+    port: 587
+    security: "starttls"
+    username:
+      value: "apikey"
+    password:
+      existingSecretKey: "mail-send-key"
+
+  # WebSocket enabled on same port (v1.29+)
+  websocket:
+    enabled: true
+
+  # Rocket (web server) config
+  rocket:
+    port: "8080"
+
+  # Persistence for attachments, sends, RSA keys, icon cache
+  data:
+    name: "vaultwarden-data"
+    size: "2Gi"
+    class: "local-path"
+    path: "/data"
+
+  # Service -- ClusterIP, Caddy handles ingress
+  service:
+    type: ClusterIP
+    port: 80
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+  # Health probes
+  livenessProbe:
+    enabled: true
+    path: "/alive"
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  readinessProbe:
+    enabled: true
+    path: "/alive"
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  ingress:
+    enabled: false
