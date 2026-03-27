@@ -195,4 +195,27 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-valkey-0.2.0/irl-valkey-0.2.0.tgz
     version: 0.2.0
-generated: "2026-03-25T16:54:50.724502378Z"
+  irl-vaultwarden:
+  - apiVersion: v2
+    appVersion: 1.35.4
+    created: "2026-03-27T20:14:26.756012957Z"
+    dependencies:
+    - name: vaultwarden
+      repository: https://guerzon.github.io/vaultwarden
+      version: 0.35.1
+    description: Vaultwarden (Bitwarden-compatible) with external PostgreSQL (CNPG)
+      and SendGrid SMTP.
+    digest: 3161549739456326b0e5799106d9777b41c645d363b06aff200648e2f6bab3de
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - vaultwarden
+    - bitwarden
+    - password-manager
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-vaultwarden
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-03-27T20:14:26.756030038Z"
