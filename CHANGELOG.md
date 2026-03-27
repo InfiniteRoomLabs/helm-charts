@@ -6,6 +6,10 @@
 
 - `irl-vaultwarden` v0.1.0: Vaultwarden (Bitwarden-compatible) password manager wrapper around guerzon/vaultwarden@0.35.1. External CNPG PostgreSQL, SendGrid SMTP relay, admin panel with token auth, ClusterIP service for Caddy ingress, 2Gi PVC for attachments/RSA keys.
 
+### Fixed
+
+- Release workflow: add guerzon Helm repo for irl-vaultwarden dependency resolution.
+
 ## [0.4.0] - 2026-03-22
 
 ### Added
