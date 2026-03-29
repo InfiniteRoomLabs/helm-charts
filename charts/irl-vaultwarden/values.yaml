@@ -32,7 +32,6 @@ vaultwarden:
 
   # SMTP via SendGrid relay
   smtp:
-    existingSecret: "sendgrid-credentials"
     host: "smtp.sendgrid.net"
     from: "no-reply@infiniteroomlabs.com"
     fromName: "Vaultwarden"
@@ -41,6 +40,7 @@ vaultwarden:
     username:
       value: "apikey"
     password:
+      existingSecret: "sendgrid-credentials"
       existingSecretKey: "mail-send-key"
 
   # WebSocket enabled on same port (v1.29+)

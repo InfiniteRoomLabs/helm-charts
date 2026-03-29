@@ -9,6 +9,7 @@
 ### Fixed
 
 - Release workflow: add guerzon Helm repo for irl-vaultwarden dependency resolution.
+- `irl-vaultwarden`: move `existingSecret` from `smtp` to `smtp.password` block to match upstream chart schema.
 
 ## [0.4.0] - 2026-03-22
 
