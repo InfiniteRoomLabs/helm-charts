@@ -10,7 +10,7 @@ image:
 
 # OpenViking configuration
 config:
-  # Ollama integration for embeddings + VLM
+  # Embedding model (Ollama, in-cluster)
   embedding:
     provider: "ollama"
     model: "nomic-embed-text:latest"
@@ -19,11 +19,12 @@ config:
     dimension: 768
     batchSize: 32
     maxConcurrent: 10
+  # VLM for semantic understanding (Gemini via litellm)
   vlm:
     provider: "litellm"
-    model: "ollama/smollm2:1.7b"
-    apiBase: "http://ollama.irl.svc.cluster.local:11434"
-    apiKey: "ollama"
+    model: "gemini/gemini-3.1-pro-preview"
+    apiBase: ""
+    apiKey: "injected-at-runtime"
     maxConcurrent: 4
   # Storage backends
   storage:
@@ -35,6 +36,11 @@ config:
 apiKey:
   existingSecret: "openviking-api-key"
   key: "root-api-key"
+
+# VLM API key -- injected at runtime into the VLM config block
+vlmApiKey:
+  existingSecret: "gemini-api-key"
+  key: "api-key"
 
 # MCP sidecar (separate process for Claude Code integration)
 # Disabled: MCP server is in examples/mcp-query/, not packaged in the

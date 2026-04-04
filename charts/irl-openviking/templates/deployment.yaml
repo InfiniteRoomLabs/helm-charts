@@ -37,12 +37,15 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
-              # Inject API key from env into config (ConfigMap is read-only)
+              # Inject secrets from env into config (ConfigMap is read-only)
               cp /config/ov.conf /tmp/ov.conf
               python3 -c "
               import json, os
               with open('/tmp/ov.conf') as f: c = json.load(f)
               c['server']['root_api_key'] = os.environ['OPENVIKING_ROOT_API_KEY']
+              vlm_key = os.environ.get('OPENVIKING_VLM_API_KEY')
+              if vlm_key:
+                  c['vlm']['api_key'] = vlm_key
               with open('/tmp/ov.conf', 'w') as f: json.dump(c, f, indent=2)
               "
               export OPENVIKING_CONFIG_FILE=/tmp/ov.conf
@@ -55,6 +58,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.apiKey.existingSecret }}
                   key: {{ .Values.apiKey.key }}
+            {{- if .Values.vlmApiKey }}
+            - name: OPENVIKING_VLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vlmApiKey.existingSecret }}
+                  key: {{ .Values.vlmApiKey.key }}
+            {{- end }}
           ports:
             - name: api
               containerPort: {{ .Values.service.api.port }}
