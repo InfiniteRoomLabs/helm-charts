@@ -43,9 +43,13 @@ spec:
               import json, os
               with open('/tmp/ov.conf') as f: c = json.load(f)
               c['server']['root_api_key'] = os.environ['OPENVIKING_ROOT_API_KEY']
-              vlm_key = os.environ.get('OPENVIKING_VLM_API_KEY')
-              if vlm_key:
-                  c['vlm']['api_key'] = vlm_key
+              for section, env_var in [('vlm', 'OPENVIKING_VLM_API_KEY'), ('embedding', 'OPENVIKING_EMBEDDING_API_KEY')]:
+                  key = os.environ.get(env_var)
+                  if key and section in c:
+                      if 'dense' in c[section]:
+                          c[section]['dense']['api_key'] = key
+                      else:
+                          c[section]['api_key'] = key
               with open('/tmp/ov.conf', 'w') as f: json.dump(c, f, indent=2)
               "
               export OPENVIKING_CONFIG_FILE=/tmp/ov.conf
@@ -58,6 +62,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.apiKey.existingSecret }}
                   key: {{ .Values.apiKey.key }}
+            {{- if .Values.embeddingApiKey }}
+            - name: OPENVIKING_EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embeddingApiKey.existingSecret }}
+                  key: {{ .Values.embeddingApiKey.key }}
+            {{- end }}
             {{- if .Values.vlmApiKey }}
             - name: OPENVIKING_VLM_API_KEY
               valueFrom:

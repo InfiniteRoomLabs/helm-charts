@@ -10,13 +10,13 @@ image:
 
 # OpenViking configuration
 config:
-  # Embedding model (Ollama, in-cluster)
+  # Embedding model (Gemini via litellm)
   embedding:
-    provider: "ollama"
-    model: "nomic-embed-text:latest"
-    apiBase: "http://ollama.irl.svc.cluster.local:11434/v1"
-    apiKey: "ollama"
-    dimension: 768
+    provider: "litellm"
+    model: "gemini/gemini-embedding-001"
+    apiBase: ""
+    apiKey: "injected-at-runtime"
+    dimension: 3072
     batchSize: 32
     maxConcurrent: 10
   # VLM for semantic understanding (Gemini via litellm)
@@ -36,6 +36,11 @@ config:
 apiKey:
   existingSecret: "openviking-api-key"
   key: "root-api-key"
+
+# Embedding API key -- injected at runtime into the embedding config block
+embeddingApiKey:
+  existingSecret: "gemini-api-key"
+  key: "api-key"
 
 # VLM API key -- injected at runtime into the VLM config block
 vlmApiKey:
@@ -87,7 +92,7 @@ mcpResources:
     memory: "512Mi"
     cpu: "500m"
 
-# Schedule on homelab (needs Ollama access, ZFS storage)
+# Schedule on homelab (needs ZFS storage)
 nodeSelector:
   irl.dev/tier: data
 
