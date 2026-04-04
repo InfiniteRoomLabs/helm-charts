@@ -26,7 +26,7 @@ data:
         }
       },
       "embedding": {
-        "max_concurrent": 10,
+        "max_concurrent": {{ .Values.config.embedding.maxConcurrent }},
         "dense": {
           "provider": "{{ .Values.config.embedding.provider }}",
           "api_key": "{{ .Values.config.embedding.apiKey }}",
@@ -41,7 +41,7 @@ data:
         "api_key": "{{ .Values.config.vlm.apiKey }}",
         "api_base": "{{ .Values.config.vlm.apiBase }}",
         "model": "{{ .Values.config.vlm.model }}",
-        "max_concurrent": 10,
+        "max_concurrent": {{ .Values.config.vlm.maxConcurrent }},
         "stream": false
       },
       "log": {

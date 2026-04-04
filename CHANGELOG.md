@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `irl-openviking` v0.2.1: Revert Ollama endpoints from laptop Tailscale IP to in-cluster service (`ollama.irl.svc.cluster.local`)
 
+### Fixed
+
+- `irl-openviking`: template `max_concurrent` from values instead of hardcoding to 10
+
 ## [0.5.0] - 2026-03-27
 
 ### Added
