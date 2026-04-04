@@ -22,7 +22,7 @@ config:
   # VLM for semantic understanding (Gemini via litellm)
   vlm:
     provider: "litellm"
-    model: "gemini/gemini-3.1-pro-preview"
+    model: "gemini/gemini-2.5-flash"
     apiBase: ""
     apiKey: "injected-at-runtime"
     maxConcurrent: 4
