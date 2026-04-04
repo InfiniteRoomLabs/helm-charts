@@ -124,6 +124,24 @@ entries:
   irl-openviking:
   - apiVersion: v2
     appVersion: 0.2.9
+    created: "2026-04-04T18:38:20.346624324Z"
+    description: OpenViking context database for AI agent memory and retrieval
+    digest: 02a67982921e980dc6fd7739d74f342f85c40b25ce32d1a2d425df9d2c326418
+    keywords:
+    - openviking
+    - vector-search
+    - agent-memory
+    - rag
+    - mcp
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-openviking
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-openviking-0.4.0/irl-openviking-0.4.0.tgz
+    version: 0.4.0
+  - apiVersion: v2
+    appVersion: 0.2.9
     created: "2026-04-04T18:13:55.785542488Z"
     description: OpenViking context database for AI agent memory and retrieval
     digest: 19ec40e33c5f5ae899422f397638541b1f1feb1abaef5024a8b7d6cbc08792ed
@@ -236,4 +254,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-04-04T18:13:55.785558468Z"
+generated: "2026-04-04T18:38:20.346649511Z"
