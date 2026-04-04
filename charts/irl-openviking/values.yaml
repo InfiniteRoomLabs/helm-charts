@@ -18,11 +18,13 @@ config:
     apiKey: "ollama"
     dimension: 768
     batchSize: 32
+    maxConcurrent: 10
   vlm:
     provider: "litellm"
-    model: "ollama/llama3.2"
+    model: "ollama/smollm2:1.7b"
     apiBase: "http://ollama.irl.svc.cluster.local:11434"
     apiKey: "ollama"
+    maxConcurrent: 4
   # Storage backends
   storage:
     agfsBackend: "local"
