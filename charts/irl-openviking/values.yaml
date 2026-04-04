@@ -10,11 +10,11 @@ image:
 
 # OpenViking configuration
 config:
-  # Embedding model (Gemini via litellm)
+  # Embedding model (Gemini via OpenAI-compatible endpoint)
   embedding:
-    provider: "litellm"
-    model: "gemini/gemini-embedding-001"
-    apiBase: ""
+    provider: "openai"
+    model: "gemini-embedding-001"
+    apiBase: "https://generativelanguage.googleapis.com/v1beta/openai/"
     apiKey: "injected-at-runtime"
     dimension: 3072
     batchSize: 32

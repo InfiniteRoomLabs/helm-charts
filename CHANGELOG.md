@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `irl-openviking` v0.4.0: Switch embeddings from Ollama nomic-embed-text (768d) to Gemini gemini-embedding-001 (3072d) via litellm
 - `irl-openviking` v0.4.0: Add `embeddingApiKey` secret injection for external embedding providers
 - `irl-openviking` v0.4.0: Generalize startup secret injection to handle both VLM and embedding API keys
+- `irl-openviking` v0.4.0: Fix embedding provider to use `openai` compat endpoint (litellm not supported for embeddings)
 
 ## [0.6.0] - 2026-04-04
 
