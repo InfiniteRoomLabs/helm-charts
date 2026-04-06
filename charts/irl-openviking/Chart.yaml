@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-openviking
 description: OpenViking context database for AI agent memory and retrieval
 type: application
-version: 0.4.0
+version: 0.4.1
 appVersion: "0.2.9"
 keywords:
   - openviking

@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-04-04
+## [0.8.0] - 2026-04-06
 
 ### Changed
 
-- `irl-openviking`: Switch VLM from Gemini 3.1 Pro Preview to Gemini 2.5 Flash (250/day -> 10,000/day rate limit)
+- `irl-openviking` v0.4.1: Switch VLM from Gemini 3.1 Pro Preview to Gemini 2.5 Flash (250/day -> 10,000/day rate limit)
+
+### Fixed
+
+- Release workflow: add `skip_existing: true` to chart-releaser to handle unchanged chart versions gracefully
 
 ## [0.7.0] - 2026-04-04
 
