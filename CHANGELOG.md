@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Release workflow: add open-telemetry Helm repo for irl-monitoring dependency resolution
+- `irl-monitoring` v0.3.1: Set required `image.repository` for OTel Collector chart (otel/opentelemetry-collector-contrib)
 
 ## [0.8.0] - 2026-04-06
 

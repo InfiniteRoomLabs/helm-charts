@@ -114,6 +114,8 @@ tempo:
 
 # ── OpenTelemetry Collector (telemetry pipeline) ─────────────────
 opentelemetry-collector:
+  image:
+    repository: otel/opentelemetry-collector-contrib
   mode: deployment
   replicaCount: 1
   resources:
