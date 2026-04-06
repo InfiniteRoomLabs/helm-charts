@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `irl-openviking` v0.4.1: Switch VLM from Gemini 3.1 Pro Preview to Gemini 2.5 Flash (250/day -> 10,000/day rate limit)
 
+### Added
+
+- `irl-gitea` v0.2.0: Add Traefik IngressRoute (HTTP) and IngressRouteTCP (SSH) templates
+- `irl-monitoring` v0.2.0: Add Traefik IngressRoutes for Grafana, Prometheus, Alertmanager
+- `irl-garage` v0.2.0: Add Traefik IngressRoute for Garage Web UI
+- `irl-openviking` v0.5.0: Add Traefik IngressRoute
+
 ### Fixed
 
 - Release workflow: add `skip_existing: true` to chart-releaser to handle unchanged chart versions gracefully
