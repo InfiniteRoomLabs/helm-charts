@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Release workflow: add open-telemetry Helm repo for irl-monitoring dependency resolution
 - `irl-monitoring` v0.3.1: Set required `image.repository` for OTel Collector chart (otel/opentelemetry-collector-contrib)
+- `irl-monitoring` v0.3.2: Replace removed `loki` exporter with `otlphttp/loki` (Loki native OTLP endpoint)
 
 ## [0.8.0] - 2026-04-06
 
