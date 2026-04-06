@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `irl-garage` v0.2.0: Add Traefik IngressRoute for Garage Web UI
 - `irl-openviking` v0.5.0: Add Traefik IngressRoute
 
+### Removed
+
+- `irl-caddy`: Chart removed (replaced by Traefik)
+
 ### Fixed
 
 - Release workflow: add `skip_existing: true` to chart-releaser to handle unchanged chart versions gracefully
