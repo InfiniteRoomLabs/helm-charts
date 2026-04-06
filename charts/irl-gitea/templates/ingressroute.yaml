@@ -1,0 +1,22 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-gitea.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}-http
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+    domains:
+      - main: {{ .Values.ingress.host }}
+{{- end }}

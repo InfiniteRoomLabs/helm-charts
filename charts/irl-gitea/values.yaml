@@ -74,3 +74,12 @@ gitea:
     enabled: false
   redis-cluster:
     enabled: false
+
+# Traefik IngressRoute
+ingress:
+  enabled: true
+  host: "git.lab.infiniteroomlabs.cloud"
+  # Gitea SSH via Traefik TCP routing
+  ssh:
+    enabled: true
+    port: 22
