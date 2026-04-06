@@ -84,3 +84,21 @@ loki:
     enabled: false
   resultsCache:
     enabled: false
+
+# Traefik IngressRoutes for monitoring services
+ingress:
+  grafana:
+    enabled: true
+    host: "grafana.lab.infiniteroomlabs.cloud"
+    serviceName: "monitoring-grafana"
+    servicePort: 80
+  prometheus:
+    enabled: true
+    host: "metrics.internal.lab.infiniteroomlabs.cloud"
+    serviceName: "monitoring-kube-prometheus-prometheus"
+    servicePort: 9090
+  alertmanager:
+    enabled: true
+    host: "alerts.internal.lab.infiniteroomlabs.cloud"
+    serviceName: "monitoring-kube-prometheus-alertmanager"
+    servicePort: 9093

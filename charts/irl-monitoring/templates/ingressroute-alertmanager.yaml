@@ -1,0 +1,22 @@
+{{- if .Values.ingress.alertmanager.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-alertmanager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-monitoring.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.alertmanager.host }}`)
+      kind: Rule
+      services:
+        - name: {{ .Values.ingress.alertmanager.serviceName }}
+          port: {{ .Values.ingress.alertmanager.servicePort }}
+  tls:
+    certResolver: letsencrypt
+    domains:
+      - main: {{ .Values.ingress.alertmanager.host }}
+{{- end }}
