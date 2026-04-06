@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-04-06
+
+### Added
+
+- `irl-monitoring` v0.3.0: Add Tempo v1.24.4 (traces backend, single-binary, 7d retention) and OpenTelemetry Collector v0.147.1 (OTLP receiver, fan-out to Tempo/Prometheus/Loki). Completes observability Phase 2.
+
 ## [0.8.0] - 2026-04-06
 
 ### Changed
