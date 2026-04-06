@@ -1,0 +1,20 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-webui
+  namespace: {{ .Release.Namespace }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        - name: {{ .Values.ingress.serviceName }}
+          port: {{ .Values.ingress.servicePort }}
+  tls:
+    certResolver: letsencrypt
+    domains:
+      - main: {{ .Values.ingress.host }}
+{{- end }}

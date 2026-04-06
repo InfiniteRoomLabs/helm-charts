@@ -98,3 +98,10 @@ nodeSelector:
 
 tolerations: []
 affinity: {}
+
+# Traefik IngressRoute
+ingress:
+  enabled: true
+  host: "context.internal.lab.infiniteroomlabs.cloud"
+  serviceName: "openviking"
+  servicePort: 1933

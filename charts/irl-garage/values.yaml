@@ -95,3 +95,10 @@ nodeSelector:
 
 tolerations: []
 affinity: {}
+
+# Traefik IngressRoute (Web UI only; S3 API stays ClusterIP-only)
+ingress:
+  enabled: true
+  host: "storage.internal.lab.infiniteroomlabs.cloud"
+  serviceName: "garage-webui"
+  servicePort: 3909
