@@ -135,6 +135,41 @@ entries:
   irl-monitoring:
   - apiVersion: v2
     appVersion: "1.0"
+    created: "2026-04-06T22:58:44.49581654Z"
+    dependencies:
+    - name: kube-prometheus-stack
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 65.8.1
+    - name: loki
+      repository: https://grafana.github.io/helm-charts
+      version: 6.24.1
+    - name: tempo
+      repository: https://grafana.github.io/helm-charts
+      version: 1.24.4
+    - name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.147.1
+    description: Monitoring umbrella -- kube-prometheus-stack + Loki + Tempo + OTel
+      Collector. Complete observability for the IRL homelab.
+    digest: 9402edf4a2eb61bbfa26f67bd61baed33ac83b03a03eb3b01155f7ad11d11447
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - monitoring
+    - prometheus
+    - grafana
+    - loki
+    - tempo
+    - opentelemetry
+    - observability
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-monitoring
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-monitoring-0.3.0/irl-monitoring-0.3.0.tgz
+    version: 0.3.0
+  - apiVersion: v2
+    appVersion: "1.0"
     created: "2026-04-06T19:10:35.187658557Z"
     dependencies:
     - name: kube-prometheus-stack
@@ -356,4 +391,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-04-06T19:10:35.323588422Z"
+generated: "2026-04-06T22:58:44.495855819Z"
