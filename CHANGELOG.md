@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-04-10
+
+### Added
+
+- `irl-paperless` v0.1.0: New chart wrapping gabe565/paperless-ngx v0.24.1 (aliased to `paperless`). Connects to shared CNPG postgres + Valkey (DB index 3), Traefik IngressRoute at `docs.lab.infiniteroomlabs.cloud`, Authentik OIDC via django-allauth, UID 1000 alignment for NFS/ZFS consume folder, dedicated Tika + Gotenberg deployments for Office doc ingestion, and nightly `document_exporter` backup CronJob uploading to Garage S3 with remote retention prune.
+
 ## [0.9.0] - 2026-04-06
 
 ### Added

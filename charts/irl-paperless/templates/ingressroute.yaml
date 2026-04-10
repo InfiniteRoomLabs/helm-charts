@@ -1,0 +1,25 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-paperless.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        # bjw-s/common names the main Service after the release + controller name.
+        # With release=paperless and default controller=main, the service is
+        # `paperless` (alias from our Chart.yaml dependency).
+        - name: {{ .Release.Name }}
+          port: 8000
+  tls:
+    certResolver: letsencrypt
+    domains:
+      - main: {{ .Values.ingress.host }}
+{{- end }}

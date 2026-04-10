@@ -1,0 +1,6 @@
+dependencies:
+- name: paperless-ngx
+  repository: oci://ghcr.io/gabe565/charts
+  version: 0.24.1
+digest: sha256:8b88d5040000caa12b164fb29b9e21d595b5570449d12da1ab6075fcadb2a23f
+generated: "2026-04-10T18:07:32.922920532-04:00"

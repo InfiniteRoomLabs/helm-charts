@@ -1,0 +1,77 @@
+{{- if .Values.gotenberg.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gotenberg
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-paperless.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gotenberg
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-paperless.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gotenberg
+  template:
+    metadata:
+      labels:
+        {{- include "irl-paperless.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gotenberg
+    spec:
+      securityContext:
+        # Gotenberg requires a non-root user for Chromium sandbox
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: gotenberg
+          image: "{{ .Values.gotenberg.image.repository }}:{{ .Values.gotenberg.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          # Paperless docs recommend disabling JavaScript execution and limiting routes
+          # for security + performance.
+          args:
+            - "gotenberg"
+            - "--chromium-disable-javascript=true"
+            - "--chromium-allow-list=file:///tmp/.*"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.gotenberg.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gotenberg
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-paperless.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gotenberg
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "irl-paperless.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gotenberg
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+{{- end }}

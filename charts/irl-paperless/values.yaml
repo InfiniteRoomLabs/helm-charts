@@ -1,0 +1,233 @@
+# irl-paperless -- Paperless-ngx with external CNPG Postgres + Valkey
+#
+# Wraps gabe565/paperless-ngx (aliased to `paperless`).
+# Disables the bundled Bitnami postgresql/mariadb/redis subcharts.
+# Injects our own DB/Redis env vars pointing at cluster-level CNPG + Valkey.
+# Secrets come from existing K8s Secrets created by scripts/bw-sync.sh.
+
+# -------- upstream chart overrides (via alias `paperless`) --------
+paperless:
+  image:
+    repository: ghcr.io/paperless-ngx/paperless-ngx
+    pullPolicy: IfNotPresent
+    tag: "2.14.7"
+
+  # Disable bundled databases -- we use cluster-level CNPG + Valkey
+  postgresql:
+    enabled: false
+  mariadb:
+    enabled: false
+  redis:
+    enabled: false
+
+  # bjw-s/common service config
+  service:
+    main:
+      type: NodePort
+      ports:
+        http:
+          port: 8000
+          # TODO(wes): verify 30800 is free with
+          # kubectl get svc -A -o jsonpath='{range .items[*]}{.spec.ports[*].nodePort}{"\n"}{end}' | sort -u
+          nodePort: 30800
+
+  # Disable upstream ingress -- we provide our own Traefik IngressRoute
+  ingress:
+    main:
+      enabled: false
+
+  # Bind to pre-created PVCs (see ansible/playbooks/k3s.yml PV+PVC tasks)
+  persistence:
+    data:
+      enabled: true
+      existingClaim: paperless-data-pvc
+      mountPath: /usr/src/paperless/data
+    media:
+      enabled: true
+      existingClaim: paperless-media-pvc
+      mountPath: /usr/src/paperless/media
+    consume:
+      enabled: true
+      existingClaim: paperless-consume-pvc
+      mountPath: /usr/src/paperless/consume
+    export:
+      enabled: true
+      existingClaim: paperless-export-pvc
+      mountPath: /usr/src/paperless/export
+
+  # UID/GID alignment across pod, ZFS dataset, and NFS export (HIGHEST RISK item in plan).
+  # The paperless container runs as UID 1000 by convention.
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+  # All env vars that paperless-ngx reads. Secret-bearing vars use the bjw-s/common
+  # shorthand: the value is a dict with `secretKeyRef`/`configMapKeyRef` and bjw-s
+  # translates it to a proper `valueFrom` in the rendered Deployment.
+  env:
+    # -- Core --
+    TZ: "America/New_York"
+    PAPERLESS_TIME_ZONE: "America/New_York"
+    PAPERLESS_URL: "https://docs.lab.infiniteroomlabs.cloud"
+    PAPERLESS_PORT: "8000"
+    PAPERLESS_ALLOWED_HOSTS: "docs.lab.infiniteroomlabs.cloud,paperless,localhost"
+    PAPERLESS_CORS_ALLOWED_HOSTS: "https://docs.lab.infiniteroomlabs.cloud"
+    PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://docs.lab.infiniteroomlabs.cloud"
+
+    # -- Database (cluster-level CNPG via postgresql-rw service) --
+    PAPERLESS_DBENGINE: "postgresql"
+    PAPERLESS_DBHOST: "postgresql-rw"
+    PAPERLESS_DBPORT: "5432"
+    PAPERLESS_DBNAME: "paperless"
+    PAPERLESS_DBUSER: "paperless"
+    PAPERLESS_DBPASS:
+      secretKeyRef:
+        name: postgres-paperless
+        key: password
+
+    # -- Redis/Valkey broker + cache (DB index 3 to avoid collision with gitea 0/1/2) --
+    PAPERLESS_REDIS_PASSWORD:
+      secretKeyRef:
+        name: redis-auth
+        key: redis-password
+    PAPERLESS_REDIS: "redis://:$(PAPERLESS_REDIS_PASSWORD)@valkey:6379/3"
+
+    # -- Secrets (filled from paperless-secrets K8s Secret, populated by bw-sync) --
+    PAPERLESS_SECRET_KEY:
+      secretKeyRef:
+        name: paperless-secrets
+        key: secret-key
+    PAPERLESS_ADMIN_USER: "admin"
+    PAPERLESS_ADMIN_PASSWORD:
+      secretKeyRef:
+        name: paperless-secrets
+        key: admin-password
+    PAPERLESS_ADMIN_MAIL: "admin@infiniteroomlabs.cloud"
+
+    # -- Storage paths (match the PVC mountPaths above) --
+    PAPERLESS_DATA_DIR: "/usr/src/paperless/data"
+    PAPERLESS_MEDIA_ROOT: "/usr/src/paperless/media"
+    PAPERLESS_CONSUMPTION_DIR: "/usr/src/paperless/consume"
+    PAPERLESS_EXPORT_DIR: "/usr/src/paperless/export"
+
+    # -- Consume pipeline (scanbridge-aware -- see plan's highest-risk item) --
+    # Scanbridge writes non-atomically: raw PDF then ocrmypdf rewrites in place.
+    # Polling-mode with a long stability window prevents ingesting partial files.
+    # 30s x 5 retries = ~2.5 min stability required before ingestion.
+    # If multi-page scans exceed that, crank POLLING_RETRY_COUNT, or fix scanbridge
+    # upstream to write-temp-then-rename (see plan risks #2).
+    PAPERLESS_CONSUMER_POLLING: "30"
+    PAPERLESS_CONSUMER_POLLING_RETRY_COUNT: "5"
+    PAPERLESS_CONSUMER_INOTIFY: "false"
+    PAPERLESS_CONSUMER_RECURSIVE: "true"
+    PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
+    PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"
+    PAPERLESS_CONSUMER_RECURSIVE_HIDDEN: "false"
+
+    # -- OCR (scanbridge already OCRs via ocrmypdf, so skip re-OCR on text layer) --
+    PAPERLESS_OCR_LANGUAGE: "eng"
+    PAPERLESS_OCR_LANGUAGES: "eng"
+    PAPERLESS_OCR_MODE: "skip"
+    PAPERLESS_OCR_CLEAN: "clean"
+    PAPERLESS_OCR_DESKEW: "true"
+    PAPERLESS_OCR_ROTATE_PAGES: "true"
+
+    # -- Tika + Gotenberg (enabled via separate controllers below) --
+    PAPERLESS_TIKA_ENABLED: "true"
+    PAPERLESS_TIKA_ENDPOINT: "http://paperless-tika:9998"
+    PAPERLESS_TIKA_GOTENBERG_ENDPOINT: "http://paperless-gotenberg:3000"
+
+    # -- Celery workers (sized modestly for homelab) --
+    PAPERLESS_TASK_WORKERS: "2"
+    PAPERLESS_THREADS_PER_WORKER: "2"
+    PAPERLESS_WEBSERVER_WORKERS: "2"
+    PAPERLESS_WORKER_TIMEOUT: "1800"
+
+    # -- Auth: Authentik OIDC via django-allauth --
+    # PAPERLESS_DISABLE_REGULAR_LOGIN starts `false` so we can bootstrap via local
+    # admin credentials; flip to `true` after SSO is verified end-to-end.
+    PAPERLESS_APPS: "allauth.socialaccount.providers.openid_connect"
+    PAPERLESS_ACCOUNT_DEFAULT_HTTP_PROTOCOL: "https"
+    PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+    PAPERLESS_DISABLE_REGULAR_LOGIN: "false"
+    PAPERLESS_SOCIALACCOUNT_PROVIDERS:
+      secretKeyRef:
+        name: paperless-secrets
+        key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+
+# -------- irl-paperless top-level (consumed by OUR templates) --------
+
+# Traefik IngressRoute (renders templates/ingressroute.yaml)
+ingress:
+  enabled: true
+  host: "docs.lab.infiniteroomlabs.cloud"
+
+# Tika sidecar (renders templates/tika.yaml)
+# Paperless env vars PAPERLESS_TIKA_ENABLED and PAPERLESS_TIKA_ENDPOINT are set
+# under paperless.env above; they reference `paperless-tika:9998` which matches
+# the Service name rendered by this template when release name is `paperless`.
+tika:
+  enabled: true
+  image:
+    repository: ghcr.io/paperless-ngx/tika
+    tag: "latest"
+  resources:
+    requests:
+      memory: "200Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Gotenberg sidecar (renders templates/gotenberg.yaml)
+# Headless Chromium for Office doc conversion. Memory-hungry -- set sensible limits.
+gotenberg:
+  enabled: true
+  image:
+    repository: docker.io/gotenberg/gotenberg
+    tag: "8"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Nightly backup CronJob (renders templates/backup-cronjob.yaml).
+# Runs document_exporter into the paperless-export PVC, uploads zip to Garage S3,
+# then cleans up the local export dir.
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  timeZone: "America/New_York"
+  image:
+    # Reuses the main paperless image so document_exporter is available
+    repository: ghcr.io/paperless-ngx/paperless-ngx
+    tag: "2.14.7"
+  uploader:
+    image:
+      repository: amazon/aws-cli
+      tag: "latest"
+  s3:
+    endpoint: "https://s3.internal.lab.infiniteroomlabs.cloud"
+    bucket: "paperless-backups"
+    existingSecret: paperless-backup-s3
+  retentionDays: 30
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"

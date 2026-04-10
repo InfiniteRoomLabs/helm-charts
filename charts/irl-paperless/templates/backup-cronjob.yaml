@@ -1,0 +1,132 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-paperless.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  {{- with .Values.backup.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "irl-paperless.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          initContainers:
+            - name: exporter
+              image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  STAMP=$(date +%Y%m%d-%H%M%S)
+                  ZIP_NAME="paperless-export-${STAMP}"
+                  cd /usr/src/paperless/src
+                  python manage.py document_exporter \
+                    --no-progress-bar \
+                    --zip \
+                    --zip-name "${ZIP_NAME}" \
+                    /usr/src/paperless/export
+                  echo "Export complete: ${ZIP_NAME}.zip"
+              envFrom:
+                - secretRef:
+                    # Paperless needs DB access to run document_exporter
+                    name: paperless-secrets
+              env:
+                - name: PAPERLESS_DBHOST
+                  value: "postgresql-rw"
+                - name: PAPERLESS_DBNAME
+                  value: "paperless"
+                - name: PAPERLESS_DBUSER
+                  value: "paperless"
+                - name: PAPERLESS_DBPASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-paperless
+                      key: password
+              volumeMounts:
+                - name: paperless-data
+                  mountPath: /usr/src/paperless/data
+                - name: paperless-media
+                  mountPath: /usr/src/paperless/media
+                - name: paperless-export
+                  mountPath: /usr/src/paperless/export
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          containers:
+            - name: uploader
+              image: "{{ .Values.backup.uploader.image.repository }}:{{ .Values.backup.uploader.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  echo "Uploading exports to ${S3_BUCKET}..."
+                  aws --endpoint-url="${S3_ENDPOINT}" s3 cp /export/ "s3://${S3_BUCKET}/" \
+                    --recursive --exclude '*' --include '*.zip'
+
+                  echo "Cleaning local export dir..."
+                  find /export -maxdepth 1 -name '*.zip' -type f -delete
+
+                  echo "Pruning remote objects older than ${RETENTION_DAYS} days..."
+                  CUTOFF=$(date -u -d "-${RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                    || date -u -v-${RETENTION_DAYS}d +%Y-%m-%dT%H:%M:%SZ)
+                  aws --endpoint-url="${S3_ENDPOINT}" s3api list-objects-v2 \
+                    --bucket "${S3_BUCKET}" \
+                    --query "Contents[?LastModified<'${CUTOFF}'].Key" \
+                    --output text 2>/dev/null | tr '\t' '\n' | while IFS= read -r key; do
+                      if [ -n "${key}" ] && [ "${key}" != "None" ]; then
+                        echo "  deleting: ${key}"
+                        aws --endpoint-url="${S3_ENDPOINT}" s3 rm "s3://${S3_BUCKET}/${key}"
+                      fi
+                  done
+                  echo "Backup complete."
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+                - name: AWS_EC2_METADATA_DISABLED
+                  value: "true"
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.backup.s3.existingSecret }}
+              volumeMounts:
+                - name: paperless-export
+                  mountPath: /export
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          volumes:
+            - name: paperless-data
+              persistentVolumeClaim:
+                claimName: paperless-data-pvc
+                readOnly: true
+            - name: paperless-media
+              persistentVolumeClaim:
+                claimName: paperless-media-pvc
+                readOnly: true
+            - name: paperless-export
+              persistentVolumeClaim:
+                claimName: paperless-export-pvc
+{{- end }}

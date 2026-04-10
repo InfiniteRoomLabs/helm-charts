@@ -1,0 +1,24 @@
+apiVersion: v2
+name: irl-paperless
+description: Paperless-ngx with external CNPG PostgreSQL + Valkey, Traefik IngressRoute, Authentik OIDC, and Garage S3 backups. Wraps gabe565/paperless-ngx.
+type: application
+version: 0.1.0
+appVersion: "2.14.7"
+kubeVersion: ">=1.27.0-0"
+keywords:
+  - documents
+  - document-management
+  - ocr
+  - paperless
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/paperless-ngx/paperless-ngx
+  - https://github.com/gabe565/charts/tree/main/charts/paperless-ngx
+maintainers:
+  - name: Infinite Room Labs
+
+dependencies:
+  - name: paperless-ngx
+    version: "0.24.1"
+    repository: "oci://ghcr.io/gabe565/charts"
+    alias: paperless
