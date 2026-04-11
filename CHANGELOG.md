@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-04-10
+
+### Changed
+
+- `irl-paperless` v0.1.1: Rename the public hostname from `docs.lab.infiniteroomlabs.cloud` to `archives.lab.infiniteroomlabs.cloud`. Updates the IngressRoute host plus all paperless `*_HOSTS` / `_URL` / `_TRUSTED_ORIGINS` env vars in the chart defaults so a fresh install lands on the right URL with no override needed.
+
+### Fixed
+
+- `irl-paperless` v0.1.1: Tika image default now points at `docker.io/apache/tika:latest`. The previous default `ghcr.io/paperless-ngx/tika:latest` returns 403 Forbidden -- that path is not a published image. Upstream paperless-ngx docker-compose uses the Apache Tika image directly.
+- `irl-paperless` v0.1.1: Mark `PAPERLESS_REDIS` as `OVERRIDE-ME` in the chart default env block and document the bjw-s/common alphabetization issue inline. The previous default used `redis://:$(PAPERLESS_REDIS_PASSWORD)@valkey:6379/3` which silently fails because bjw-s/common renders env vars in alphabetical order, so `PAPERLESS_REDIS` is emitted before `PAPERLESS_REDIS_PASSWORD` and the k8s `$(VAR)` substitution leaves a literal `$(PAPERLESS_REDIS_PASSWORD)` in the URL. Operators must override this env var with the inline-rendered URL from a secrets values file (the IRL ansible playbook does this from `vault_redis_password`).
+
 ## [0.10.0] - 2026-04-10
 
 ### Added

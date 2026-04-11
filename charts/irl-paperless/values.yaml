@@ -78,11 +78,11 @@ paperless:
     # -- Core --
     TZ: "America/New_York"
     PAPERLESS_TIME_ZONE: "America/New_York"
-    PAPERLESS_URL: "https://docs.lab.infiniteroomlabs.cloud"
+    PAPERLESS_URL: "https://archives.lab.infiniteroomlabs.cloud"
     PAPERLESS_PORT: "8000"
-    PAPERLESS_ALLOWED_HOSTS: "docs.lab.infiniteroomlabs.cloud,paperless,localhost"
-    PAPERLESS_CORS_ALLOWED_HOSTS: "https://docs.lab.infiniteroomlabs.cloud"
-    PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://docs.lab.infiniteroomlabs.cloud"
+    PAPERLESS_ALLOWED_HOSTS: "archives.lab.infiniteroomlabs.cloud,paperless,localhost"
+    PAPERLESS_CORS_ALLOWED_HOSTS: "https://archives.lab.infiniteroomlabs.cloud"
+    PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://archives.lab.infiniteroomlabs.cloud"
 
     # -- Database (cluster-level CNPG via postgresql-rw service) --
     PAPERLESS_DBENGINE: "postgresql"
@@ -96,11 +96,20 @@ paperless:
         key: password
 
     # -- Redis/Valkey broker + cache (DB index 3 to avoid collision with gitea 0/1/2) --
+    # NOTE: PAPERLESS_REDIS is intentionally a placeholder. bjw-s/common
+    # alphabetizes env vars, so we cannot rely on the k8s $(VAR) substitution
+    # syntax to inject PAPERLESS_REDIS_PASSWORD into PAPERLESS_REDIS at runtime
+    # (the password var would be defined AFTER the URL var in the rendered
+    # Deployment, breaking the substitution). Operators MUST override
+    # PAPERLESS_REDIS in their environment values file with the password
+    # rendered inline -- see ansible/playbooks/helm-deploy.yml for the
+    # 'Phase 3: Write Paperless secrets override' task that does this from
+    # vault_redis_password.
     PAPERLESS_REDIS_PASSWORD:
       secretKeyRef:
         name: redis-auth
         key: redis-password
-    PAPERLESS_REDIS: "redis://:$(PAPERLESS_REDIS_PASSWORD)@valkey:6379/3"
+    PAPERLESS_REDIS: "redis://:OVERRIDE-ME@valkey:6379/3"
 
     # -- Secrets (filled from paperless-secrets K8s Secret, populated by bw-sync) --
     PAPERLESS_SECRET_KEY:
@@ -170,7 +179,7 @@ paperless:
 # Traefik IngressRoute (renders templates/ingressroute.yaml)
 ingress:
   enabled: true
-  host: "docs.lab.infiniteroomlabs.cloud"
+  host: "archives.lab.infiniteroomlabs.cloud"
 
 # Tika sidecar (renders templates/tika.yaml)
 # Paperless env vars PAPERLESS_TIKA_ENABLED and PAPERLESS_TIKA_ENDPOINT are set
@@ -179,7 +188,10 @@ ingress:
 tika:
   enabled: true
   image:
-    repository: ghcr.io/paperless-ngx/tika
+    # Upstream paperless-ngx docker-compose uses the native Apache Tika image.
+    # Earlier docs referenced ghcr.io/paperless-ngx/tika:latest -- that path
+    # returns 403 Forbidden, the image is not actually published there.
+    repository: docker.io/apache/tika
     tag: "latest"
   resources:
     requests:
