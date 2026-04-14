@@ -10,7 +10,7 @@ paperless:
   image:
     repository: ghcr.io/paperless-ngx/paperless-ngx
     pullPolicy: IfNotPresent
-    tag: "2.14.7"
+    tag: "2.20.14"
 
   # Disable bundled databases -- we use cluster-level CNPG + Valkey
   postgresql:
@@ -226,7 +226,7 @@ backup:
   image:
     # Reuses the main paperless image so document_exporter is available
     repository: ghcr.io/paperless-ngx/paperless-ngx
-    tag: "2.14.7"
+    tag: "2.20.14"
   uploader:
     image:
       repository: amazon/aws-cli

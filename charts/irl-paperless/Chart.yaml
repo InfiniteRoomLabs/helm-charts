@@ -2,8 +2,8 @@ apiVersion: v2
 name: irl-paperless
 description: Paperless-ngx with external CNPG PostgreSQL + Valkey, Traefik IngressRoute, Authentik OIDC, and Garage S3 backups. Wraps gabe565/paperless-ngx.
 type: application
-version: 0.1.1
-appVersion: "2.14.7"
+version: 0.2.0
+appVersion: "2.20.14"
 kubeVersion: ">=1.27.0-0"
 keywords:
   - documents
