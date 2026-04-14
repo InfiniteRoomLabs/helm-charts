@@ -385,6 +385,34 @@ entries:
     version: 0.1.0
   irl-paperless:
   - apiVersion: v2
+    appVersion: 2.20.14
+    created: "2026-04-14T23:14:44.590470904Z"
+    dependencies:
+    - alias: paperless
+      name: paperless-ngx
+      repository: oci://ghcr.io/gabe565/charts
+      version: 0.24.1
+    description: Paperless-ngx with external CNPG PostgreSQL + Valkey, Traefik IngressRoute,
+      Authentik OIDC, and Garage S3 backups. Wraps gabe565/paperless-ngx.
+    digest: 3524925acfab4c4f8abd3b0e05324dee741801347c17cf7bee1c0fce8d8f9b8d
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - documents
+    - document-management
+    - ocr
+    - paperless
+    kubeVersion: '>=1.27.0-0'
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-paperless
+    sources:
+    - https://github.com/paperless-ngx/paperless-ngx
+    - https://github.com/gabe565/charts/tree/main/charts/paperless-ngx
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-paperless-0.2.0/irl-paperless-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
     appVersion: 2.14.7
     created: "2026-04-11T02:44:18.407004835Z"
     dependencies:
@@ -518,4 +546,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-04-11T02:44:18.407049849Z"
+generated: "2026-04-14T23:14:44.590511319Z"
