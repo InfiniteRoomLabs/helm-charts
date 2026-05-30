@@ -46,6 +46,11 @@ service:
   s3:
     port: 3900
     type: ClusterIP
+    # Optional: expose ONLY the S3 port via a separate NodePort service
+    # (templates/service-s3-nodeport.yaml) for laptop-local clients reaching
+    # Garage over Tailscale (e.g. Terraform's S3 state backend). Leave unset to
+    # keep S3 cluster-internal. The main service stays ClusterIP regardless.
+    externalNodePort: ""
   web:
     port: 3902
     type: ClusterIP

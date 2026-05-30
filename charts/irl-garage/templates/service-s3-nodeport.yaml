@@ -1,0 +1,23 @@
+{{- if .Values.service.s3.externalNodePort }}
+# Dedicated NodePort service exposing ONLY the S3 API port, so laptop-local
+# clients (e.g. Terraform's S3 state backend) can reach Garage over the
+# Tailscale interface without exposing the admin/rpc/web ports. The main
+# `{{ .Release.Name }}` service stays ClusterIP for in-cluster consumers.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-s3-ext
+  labels:
+    app.kubernetes.io/name: garage-s3-ext
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: NodePort
+  ports:
+    - name: s3
+      port: {{ .Values.service.s3.port }}
+      targetPort: s3
+      nodePort: {{ .Values.service.s3.externalNodePort }}
+  selector:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
