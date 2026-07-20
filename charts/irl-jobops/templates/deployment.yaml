@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-jobops.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-jobops.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  # Recreate: single writer against a ReadWriteOnce ZFS-backed PVC -- never run
+  # two pods holding the same claim.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-jobops.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "irl-jobops.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "irl-jobops.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        # ---- (1) JobOps application ----
+        - name: job-ops
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          {{- end }}
+          env:
+            {{- range $k, $v := .Values.app.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+          # EXEC probes using node -- curl is not guaranteed to exist in the image.
+          livenessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - "fetch('http://localhost:{{ .Values.app.port }}/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - "fetch('http://localhost:{{ .Values.app.port }}/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- range .Values.writableEmptyDirs }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+        {{- if .Values.cloudflared.enabled }}
+        # ---- (2) cloudflared tunnel sidecar ----
+        # Reaches the app over pod-localhost:{{ .Values.app.port }}. Runs the tunnel
+        # from a token FILE (mounted from a Secret) -- k8s args are not shell-
+        # expanded, so the token cannot be passed inline as "$TUNNEL_TOKEN".
+        - name: cloudflared
+          image: "{{ .Values.cloudflared.image.repository }}@{{ .Values.cloudflared.image.digest }}"
+          imagePullPolicy: {{ .Values.cloudflared.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - cloudflared
+            - tunnel
+            - --no-autoupdate
+            - --loglevel
+            - info
+            # http2 transport: many self-hosted/homelab networks block outbound
+            # QUIC (UDP/7844); http2 uses TCP/443 and always works where HTTPS does.
+            - --protocol
+            - {{ .Values.cloudflared.protocol | default "http2" | quote }}
+            - run
+            - --token-file
+            - /etc/cloudflared/token/{{ .Values.cloudflared.tunnelToken.key }}
+          resources:
+            {{- toYaml .Values.cloudflared.resources | nindent 12 }}
+          volumeMounts:
+            - name: cloudflared-token
+              mountPath: /etc/cloudflared/token
+              readOnly: true
+            # readOnlyRootFilesystem is true -- give cloudflared a scratch dir.
+            - name: cloudflared-tmp
+              mountPath: /tmp
+        {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+        {{- end }}
+        {{- range .Values.writableEmptyDirs }}
+        - name: {{ .name }}
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.cloudflared.enabled }}
+        - name: cloudflared-token
+          secret:
+            secretName: {{ .Values.cloudflared.tunnelToken.existingSecret }}
+            items:
+              - key: {{ .Values.cloudflared.tunnelToken.key }}
+                path: {{ .Values.cloudflared.tunnelToken.key }}
+        - name: cloudflared-tmp
+          emptyDir: {}
+        {{- end }}

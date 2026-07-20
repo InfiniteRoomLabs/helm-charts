@@ -1,0 +1,92 @@
+{{- if .Values.networkPolicy.enabled }}
+# ============================================================================
+# NetworkPolicies for the jobops namespace.
+#
+# Model: deny everything, then additively allow only (a) DNS to CoreDNS and
+# (b) egress to the public internet minus private/CGNAT/link-local ranges.
+#
+# There are NO ingress allow rules on purpose: the only client of the app is
+# the cloudflared sidecar in the SAME pod, which reaches it over the pod
+# loopback (localhost). Same-pod loopback traffic is not subject to
+# NetworkPolicy, so no ingress rule is needed -- and none is granted.
+#
+# IPv6 NOTE: an IPv4 ipBlock (0.0.0.0/0) cannot carry IPv6 excepts like
+# fc00::/7. If pods get IPv6 addresses, EITHER disable pod IPv6 OR add a
+# SEPARATE NetworkPolicy with an ::/0 ipBlock and IPv6 private excepts.
+# Otherwise IPv6 egress is uncontrolled by this policy.
+# ============================================================================
+---
+# (a) default-deny-all: no ingress, no egress for any pod in the namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-jobops.fullname" . }}-default-deny-all
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-jobops.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# (b) allow-dns: egress to CoreDNS in kube-system on 53/udp + 53/tcp.
+# The namespaceSelector AND podSelector both sit in one `to` element so they
+# are ANDed -- CoreDNS pods (k8s-app=kube-dns) inside kube-system only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-jobops.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-jobops.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-jobops.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.networkPolicy.egressInternet.enabled }}
+---
+# (c) allow-egress-internet: egress to the public internet, excluding
+# RFC1918, CGNAT (100.64.0.0/10) and link-local (169.254.0.0/16). cloudflared
+# uses this to reach the Cloudflare edge; the app uses it to scrape job boards
+# and call AI APIs. In-cluster/private targets remain blocked.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-jobops.fullname" . }}-allow-egress-internet
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-jobops.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-jobops.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+{{- end }}
+{{- end }}

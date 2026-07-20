@@ -1,0 +1,13 @@
+apiVersion: v2
+name: irl-jobops
+description: JobOps self-hosted job-hunting app, exposed only via a Cloudflare Tunnel sidecar (no Service, no IngressRoute)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - jobops
+  - job-search
+  - cloudflare-tunnel
+  - self-hosted
+maintainers:
+  - name: Infinite Room Labs

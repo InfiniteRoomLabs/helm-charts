@@ -1,0 +1,140 @@
+# irl-jobops/values.yaml
+# =====================
+# JobOps: self-hostable job-hunting app (fork of dakheera47/job-ops).
+# Reached ONLY through the co-located cloudflared sidecar over pod-localhost:3001.
+# There is deliberately NO Service and NO Traefik IngressRoute -- the tunnel
+# replaces both. The public hostname (jops.infiniteroomlabs.com) is bound to the
+# tunnel in the Cloudflare dashboard / tunnel config, not here.
+#
+# Namespace: jobops   (set at `helm install -n jobops`; templates honor .Release.Namespace)
+
+# -------- app image (fork of ghcr.io/dakheera47/job-ops, pinned BY DIGEST) --------
+# Digest-pinned for supply-chain safety. Replace the placeholder with the real
+# manifest digest, e.g. digest: "sha256:0123abcd...". The image reference is
+# rendered as "{repository}@{digest}", so a tag is intentionally not used.
+image:
+  repository: ghcr.io/dakheera47/job-ops
+  digest: "REPLACE_WITH_DIGEST"
+  pullPolicy: IfNotPresent
+
+# Pull secrets for private registries (e.g. a private GHCR fork image).
+# Each entry: { name: <k8s docker-registry secret in this namespace> }.
+imagePullSecrets: []
+
+# App runtime config.
+app:
+  port: 3001
+  # Static env applied to the job-ops container. Analytics MUST stay disabled.
+  env:
+    JOBOPS_DISABLE_ANALYTICS: "true"
+    NODE_ENV: "production"
+    PORT: "3001"
+
+# App secrets (API keys, Gmail OAuth creds, etc.) surfaced via envFrom.
+# Populated out-of-band by scripts/bw-sync.sh (Bitwarden -> K8s Secret).
+existingSecret: jobops-secrets
+
+# -------- persistence: static, ZFS-backed PV (dataset main/jobops-data) --------
+# The PV + PVC are created in the ansible lane, NOT by this chart. We only bind
+# to the pre-created claim.
+persistence:
+  enabled: true
+  existingClaim: jobops-data-pvc
+  mountPath: /app/data
+  size: 10Gi
+
+# readOnlyRootFilesystem is true, so every path the app writes outside the PVC
+# needs a writable emptyDir. /tmp plus browser/cache dirs (the app renders PDFs
+# via a headless browser, which scribbles into a cache dir).
+writableEmptyDirs:
+  - name: tmp
+    mountPath: /tmp
+  - name: app-cache
+    mountPath: /app/.cache
+  - name: home-cache
+    mountPath: /home/node/.cache
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+# -------- hardened security contexts (shared by both containers) --------
+# Pod-level: identity + fsGroup so the ZFS-backed PVC is group-writable.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level: applied to job-ops AND cloudflared.
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# -------- cloudflared tunnel sidecar (pinned BY DIGEST) --------
+# Runs the tunnel from a TOKEN FILE mounted from a Secret. The token is NOT
+# passed as an arg -- k8s container args are not shell-expanded, so
+# "$TUNNEL_TOKEN" would be sent literally. --token-file reads the value at
+# runtime instead.
+cloudflared:
+  # Toggle the tunnel sidecar. Keep true for production (the tunnel is the only
+  # ingress path). Set false for a staged app-only bring-up before the tunnel
+  # token exists -- reach the app via `kubectl port-forward` in that window.
+  enabled: true
+  image:
+    repository: cloudflare/cloudflared
+    digest: "REPLACE_WITH_DIGEST"
+    pullPolicy: IfNotPresent
+  # Secret holding the tunnel token. Key is projected to a file and passed via
+  # --token-file (see templates/deployment.yaml).
+  tunnelToken:
+    existingSecret: jobops-cloudflared-token
+    key: token
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+# -------- network policy --------
+networkPolicy:
+  enabled: true
+  # egressInternet is the allow-list toggle: when true, pods may reach the public
+  # internet (0.0.0.0/0) EXCEPT RFC1918 / CGNAT / link-local ranges. cloudflared
+  # needs this to reach the Cloudflare edge; the app needs it to scrape job
+  # boards and call AI APIs. DNS to CoreDNS is always allowed separately.
+  egressInternet:
+    enabled: true
+
+# -------- scheduling (needs the ZFS data tier) --------
+nodeSelector:
+  irl.dev/tier: data
+tolerations: []
+affinity: {}
+
+# Force ndots:1 so external FQDNs (chatgpt.com, AI APIs, job boards) resolve as
+# absolute names on the first query. The cluster default (ndots:5 + several search
+# domains) breaks Codex's pure-Rust DNS resolver -- it fails with "Name has no
+# usable address" while glibc clients (curl/node) fall through fine. JobOps has no
+# in-cluster service dependencies, so short-name resolution is not needed.
+dnsConfig:
+  options:
+    - name: ndots
+      value: "1"
