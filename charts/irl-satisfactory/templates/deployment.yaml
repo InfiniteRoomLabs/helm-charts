@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-satisfactory.fullname" . }}
+  labels:
+    {{- include "irl-satisfactory.labels" . | nindent 4 }}
+spec:
+  # One save file, one process. Not horizontally scalable.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-satisfactory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "irl-satisfactory.selectorLabels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: satisfactory
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: game-udp
+              containerPort: {{ .Values.server.gamePort }}
+              protocol: UDP
+            - name: game-tcp
+              containerPort: {{ .Values.server.gamePort }}
+              protocol: TCP
+            - name: messaging
+              containerPort: {{ .Values.server.messagingPort }}
+              protocol: TCP
+          env:
+            - name: MAXPLAYERS
+              value: {{ .Values.server.maxPlayers | quote }}
+            - name: PUID
+              value: {{ .Values.server.puid | quote }}
+            - name: PGID
+              value: {{ .Values.server.pgid | quote }}
+            - name: STEAMBETA
+              value: {{ .Values.server.steamBeta | quote }}
+            - name: SKIPUPDATE
+              value: {{ .Values.server.skipUpdate | quote }}
+            - name: AUTOSAVENUM
+              value: {{ .Values.server.autoSaveNum | quote }}
+            - name: DISABLESEASONALEVENTS
+              value: {{ .Values.server.disableSeasonalEvents | quote }}
+            - name: LOG
+              value: {{ .Values.server.log | quote }}
+            - name: SERVERGAMEPORT
+              value: {{ .Values.server.gamePort | quote }}
+            - name: SERVERMESSAGINGPORT
+              value: {{ .Values.server.messagingPort | quote }}
+            {{- range $k, $v := .Values.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          # SteamCMD pulls ~10Gi before anything listens. Without a generous
+          # startup probe the pod CrashLoops forever on a cold volume.
+          startupProbe:
+            tcpSocket:
+              port: messaging
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: messaging
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: messaging
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

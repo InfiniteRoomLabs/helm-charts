@@ -1,0 +1,17 @@
+apiVersion: v2
+name: irl-satisfactory
+description: Satisfactory dedicated server (wolveix/satisfactory-server) with NodePort LAN exposure and ZFS-backed persistence
+type: application
+version: 0.1.0
+# Tracks the wolveix image release, not the game version. The image
+# self-updates game files via SteamCMD on container start unless SKIPUPDATE=true.
+appVersion: "v1.9.10"
+keywords:
+  - satisfactory
+  - game-server
+  - steamcmd
+maintainers:
+  - name: Infinite Room Labs
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/wolveix/satisfactory-server

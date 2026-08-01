@@ -1,0 +1,26 @@
+Satisfactory server "{{ .Release.Name }}" deployed to namespace {{ .Release.Namespace }}.
+
+FIRST BOOT TAKES 10-30 MINUTES. SteamCMD pulls ~10Gi before anything listens
+on port {{ .Values.server.messagingPort }}. Watch it:
+
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-satisfactory.fullname" . }}
+
+Connect from the LAN (no Tailscale needed, e.g. Steam Deck):
+
+  Server Manager -> Add Server -> <node-lan-ip>:{{ .Values.service.game.nodePort }}
+
+From the tailnet the same works against the node's Tailscale IP.
+
+The server starts UNCLAIMED. Claim it in-game, set the admin password, then
+Manage Saves -> Upload Save to push a single-player world up, and set it as
+the Auto-Load Session so it survives restarts.
+
+To drop a .sav in directly instead:
+
+  kubectl -n {{ .Release.Namespace }} cp ./MySave.sav \
+    <pod-name>:/config/saved/server/MySave.sav
+
+{{- if not .Values.persistence.enabled }}
+
+WARNING: persistence is disabled. Your factory dies with the pod.
+{{- end }}

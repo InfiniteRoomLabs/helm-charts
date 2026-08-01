@@ -1,0 +1,100 @@
+# irl-satisfactory/values.yaml
+# =============================
+# Satisfactory dedicated server (wolveix/satisfactory-server).
+# https://github.com/wolveix/satisfactory-server
+#
+# Port design: the container listens directly on the NodePort numbers
+# (SERVERGAMEPORT/SERVERMESSAGINGPORT are configurable). Satisfactory 1.1+
+# advertises the messaging port to clients during the game-port handshake,
+# so the listen port MUST equal the externally reachable port -- no NAT-style
+# port translation anywhere in the path.
+
+image:
+  repository: wolveix/satisfactory-server
+  # Pin this. `latest` means an unannounced game-breaking update is one
+  # restart away from your save file.
+  tag: "v1.9.10"
+  pullPolicy: IfNotPresent
+
+# Game server configuration (maps 1:1 to the image's env vars)
+server:
+  maxPlayers: 4
+  # User/group the server process runs as. Must match fsGroup below and the
+  # ownership of the ZFS dataset backing the PV.
+  puid: 1000
+  pgid: 1000
+  # true = experimental branch
+  steamBeta: false
+  # true = skip the SteamCMD update check on boot (much faster restarts,
+  # but the server drifts behind the client version)
+  skipUpdate: false
+  autoSaveNum: 5
+  disableSeasonalEvents: false
+  # Verbose Steam/game logging into /config/logs
+  log: false
+  # Listen ports. Deliberately equal to service.*.nodePort -- see header.
+  gamePort: 30777
+  messagingPort: 30888
+
+# Anything else the image supports goes here, rendered verbatim as env vars.
+extraEnv: {}
+  # AUTOSAVEINTERVAL: "300"
+  # TIMEOUT: "30"
+
+resources:
+  requests:
+    memory: "6Gi"
+    cpu: "2"
+  limits:
+    memory: "12Gi"
+    # Deliberately no CPU limit: CFS throttling on a tick-based sim shows up
+    # as stuttering belts and rubber-banding. Requests + node pinning instead.
+
+# Persistence -- ZFS-backed PV, created out-of-band by ansible.
+# /config holds gamefiles (~10Gi), saved/, backups/, logs/.
+persistence:
+  enabled: true
+  existingClaim: satisfactory-data-pvc
+  size: 40Gi
+
+# Single NodePort Service carrying game (TCP+UDP, same port number) and
+# messaging (TCP). LAN clients connect to <node-lan-ip>:<game nodePort>;
+# the nftables allowlist on the node must permit these ports.
+service:
+  type: NodePort
+  game:
+    port: 30777
+    nodePort: 30777
+  messaging:
+    port: 30888
+    nodePort: 30888
+
+# Probes hit the messaging TCP port -- UDP probes are meaningless and the
+# messaging port is the honest "server is actually up" signal.
+probes:
+  # First boot pulls ~10Gi through SteamCMD before anything listens.
+  # Budget: 60 * 30s = 30 minutes. Raise failureThreshold on a slow link.
+  startup:
+    periodSeconds: 30
+    failureThreshold: 60
+  liveness:
+    periodSeconds: 30
+    failureThreshold: 5
+  readiness:
+    periodSeconds: 15
+    failureThreshold: 3
+
+# Autosave-on-shutdown needs breathing room.
+terminationGracePeriodSeconds: 120
+
+podSecurityContext:
+  fsGroup: 1000
+  # Avoids a recursive chown of a 40Gi volume on every pod start.
+  fsGroupChangePolicy: OnRootMismatch
+
+# Schedule on homelab (needs ZFS storage)
+nodeSelector:
+  irl.dev/tier: data
+
+tolerations: []
+affinity: {}

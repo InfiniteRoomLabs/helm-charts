@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-08-01
+
+### Added
+
+- `irl-satisfactory` v0.1.0: New chart for a Satisfactory dedicated server wrapping wolveix/satisfactory-server v1.9.10. Deployment + Recreate on a pre-created ZFS PVC (`satisfactory-data-pvc`), single NodePort Service exposing game 30777 (first mixed TCP+UDP Service in the repo) and messaging 30888 (TCP). The container listens on the NodePort numbers directly (`SERVERGAMEPORT`/`SERVERMESSAGINGPORT`) because Satisfactory 1.1+ advertises the messaging port to clients -- listen port must equal reachable port. 30-minute `startupProbe` budget for the cold SteamCMD pull, no CPU limit (CFS throttling reads as tick stutter), `fsGroupChangePolicy: OnRootMismatch`, 120s termination grace for the shutdown autosave. No secrets -- admin password is set in-game and lives on the PVC.
+
 ## [0.12.0] - 2026-08-01
 
 ### Added

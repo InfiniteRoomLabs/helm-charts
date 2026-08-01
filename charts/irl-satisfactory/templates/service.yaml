@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "irl-satisfactory.fullname" . }}
+  labels:
+    {{- include "irl-satisfactory.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    # Same port number, both protocols -- k8s allows duplicate nodePorts
+    # across protocols, and Satisfactory uses 7777-style TCP+UDP on one port.
+    - name: game-udp
+      port: {{ .Values.service.game.port }}
+      targetPort: game-udp
+      protocol: UDP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.game.nodePort }}
+      nodePort: {{ .Values.service.game.nodePort }}
+      {{- end }}
+    - name: game-tcp
+      port: {{ .Values.service.game.port }}
+      targetPort: game-tcp
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.game.nodePort }}
+      nodePort: {{ .Values.service.game.nodePort }}
+      {{- end }}
+    # Reliable-messaging port (Satisfactory 1.1+). Advertised to clients via
+    # the game-port handshake, so it must be externally reachable too.
+    - name: messaging
+      port: {{ .Values.service.messaging.port }}
+      targetPort: messaging
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.messaging.nodePort }}
+      nodePort: {{ .Values.service.messaging.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "irl-satisfactory.selectorLabels" . | nindent 4 }}
