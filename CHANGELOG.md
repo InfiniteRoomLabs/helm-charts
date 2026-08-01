@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-01
+
+### Added
+
+- `irl-jobops` v0.2.0: Daily pipeline CronJob (`pipelineCron` values block). Triggers a JobOps saved-search run (`{"presetName":"daily-agentic-ai"}` against `POST /api/pipeline/run`, a fork feature) via the public hostname through the Cloudflare tunnel — the chart deliberately has no in-cluster route to the app. Auth comes from secret `jobops-cron-auth` (CF Access service token + dedicated JobOps API key, created out-of-band). Pod gets the app's `dnsConfig` ndots:1 fix (musl resolver in the digest-pinned curl image fails on the cluster's ndots:5 search path) and carries the chart selector labels so the existing allow-dns/allow-egress-internet NetworkPolicies apply; 409 (pipeline already running) counts as success.
+
 ## [0.11.0] - 2026-04-14
 
 ### Changed

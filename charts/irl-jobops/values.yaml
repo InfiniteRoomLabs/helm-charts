@@ -138,3 +138,35 @@ dnsConfig:
   options:
     - name: ndots
       value: "1"
+
+# -------- scheduled pipeline runs (CronJob, pinned BY DIGEST) --------
+# Triggers a JobOps pipeline run on a schedule via the PUBLIC hostname -- the
+# chart deliberately has no Service and default-deny ingress, so the only
+# route to the app (even from inside the cluster) is out through the internet
+# and back in via the Cloudflare tunnel. The POST returns immediately; the
+# pipeline runs asynchronously inside the app pod. The body references a
+# saved search preset by name (requires the fork's run-by-preset feature,
+# POST /api/pipeline/run with presetName) -- the search config itself lives
+# in JobOps as the single source of truth, editable in the Run Search modal
+# without touching this chart. Watchlist sources follow the preset.
+pipelineCron:
+  enabled: true
+  schedule: "0 7 * * *"
+  timeZone: "America/New_York"
+  url: "https://jops.infiniteroomlabs.com/api/pipeline/run"
+  body: '{"presetName":"daily-agentic-ai"}'
+  # Secret keys: CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (Cloudflare
+  # Access service token) and JOBOPS_API_KEY (JobOps API key "k8s-pipeline-cron").
+  # Created out-of-band, same as the other secrets in this namespace.
+  existingSecret: jobops-cron-auth
+  image:
+    repository: curlimages/curl
+    digest: "sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"

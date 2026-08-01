@@ -1,0 +1,81 @@
+{{- if .Values.pipelineCron.enabled }}
+# Scheduled pipeline trigger. Fires a POST at the public hostname through the
+# Cloudflare tunnel (there is no in-cluster path to the app by design). The
+# request only STARTS the run -- the pipeline executes asynchronously in the
+# app pod -- so the job itself is done in seconds. 409 (already running) is
+# treated as success so an overlapping manual run never marks the cron failed.
+# Egress: the pod carries the chart's selector labels, so the existing
+# allow-dns and allow-egress-internet NetworkPolicies apply to it as-is.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "irl-jobops.fullname" . }}-pipeline-cron
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-jobops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pipeline-cron
+spec:
+  schedule: {{ .Values.pipelineCron.schedule | quote }}
+  timeZone: {{ .Values.pipelineCron.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            {{- include "irl-jobops.labels" . | nindent 12 }}
+            app.kubernetes.io/component: pipeline-cron
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # Same ndots:1 fix as the app pod: the cluster default (ndots:5 +
+          # search domains) makes musl's resolver in the curl image fail on
+          # external FQDNs, so force absolute-name resolution first.
+          {{- with .Values.dnsConfig }}
+          dnsConfig:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: trigger
+              image: "{{ .Values.pipelineCron.image.repository }}@{{ .Values.pipelineCron.image.digest }}"
+              imagePullPolicy: {{ .Values.pipelineCron.image.pullPolicy }}
+              {{- with .Values.containerSecurityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.pipelineCron.existingSecret }}
+              command:
+                - /bin/sh
+                - -ec
+                # No file writes (root fs may be read-only): response body and
+                # status code travel through the shell variable only.
+                - |
+                  out=$(curl -sS --retry 3 --retry-all-errors --retry-delay 5 \
+                    -w '\n%{http_code}' -X POST {{ .Values.pipelineCron.url | quote }} \
+                    -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+                    -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+                    -H "Authorization: Bearer ${JOBOPS_API_KEY}" \
+                    -H 'Content-Type: application/json' \
+                    --data {{ .Values.pipelineCron.body | quote }})
+                  code=$(printf '%s' "$out" | tail -n1)
+                  body=$(printf '%s' "$out" | sed '$d')
+                  echo "status=$code body=$body"
+                  case "$code" in
+                    2*) exit 0 ;;
+                    409) echo "pipeline already running; treating as success"; exit 0 ;;
+                    *) exit 1 ;;
+                  esac
+              resources:
+                {{- toYaml .Values.pipelineCron.resources | nindent 16 }}
+{{- end }}
