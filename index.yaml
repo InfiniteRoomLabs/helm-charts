@@ -149,6 +149,25 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-gitea-0.1.0/irl-gitea-0.1.0.tgz
     version: 0.1.0
+  irl-jobops:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-08-01T23:20:02.705340569Z"
+    description: JobOps self-hosted job-hunting app, exposed only via a Cloudflare
+      Tunnel sidecar (no Service, no IngressRoute)
+    digest: dbd9a686de4b5d21538711363f45c4b18fca43eb6e39bed64cab7c85f99c02d3
+    keywords:
+    - jobops
+    - job-search
+    - cloudflare-tunnel
+    - self-hosted
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-jobops
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-jobops-0.2.0/irl-jobops-0.2.0.tgz
+    version: 0.2.0
   irl-monitoring:
   - apiVersion: v2
     appVersion: "1.0"
@@ -513,6 +532,27 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-postgres-0.2.0/irl-postgres-0.2.0.tgz
     version: 0.2.0
+  irl-satisfactory:
+  - apiVersion: v2
+    appVersion: v1.9.10
+    created: "2026-08-01T23:20:02.899495377Z"
+    description: Satisfactory dedicated server (wolveix/satisfactory-server) with
+      NodePort LAN exposure and ZFS-backed persistence
+    digest: 80b7fa7cb164d0fca5a754b05a820e7b387abda54df2db37abfd1e050959afd2
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - satisfactory
+    - game-server
+    - steamcmd
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-satisfactory
+    sources:
+    - https://github.com/wolveix/satisfactory-server
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-satisfactory-0.1.0/irl-satisfactory-0.1.0.tgz
+    version: 0.1.0
   irl-valkey:
   - apiVersion: v2
     appVersion: "8.1"
@@ -563,4 +603,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-05-30T16:56:29.555608188Z"
+generated: "2026-08-01T23:20:02.899541023Z"
