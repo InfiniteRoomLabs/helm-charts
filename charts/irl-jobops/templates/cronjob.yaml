@@ -1,22 +1,29 @@
 {{- if .Values.pipelineCron.enabled }}
-# Scheduled pipeline trigger. Fires a POST at the public hostname through the
-# Cloudflare tunnel (there is no in-cluster path to the app by design). The
-# request only STARTS the run -- the pipeline executes asynchronously in the
-# app pod -- so the job itself is done in seconds. 409 (already running) is
-# treated as success so an overlapping manual run never marks the cron failed.
+{{- range .Values.pipelineCron.presets }}
+---
+# Scheduled pipeline trigger (one CronJob per saved-search preset). Fires a
+# POST at the public hostname through the Cloudflare tunnel (there is no
+# in-cluster path to the app by design). The request only STARTS the run --
+# the pipeline executes asynchronously in the app pod -- so the job itself is
+# done in seconds. The orchestrator REJECTS overlapping runs with 409 (it does
+# not queue), so preset schedules must be staggered further apart than a
+# typical run (~10 min as of 2026-08). 409 is treated as success so an
+# overlapping manual run never marks the cron failed.
 # Egress: the pod carries the chart's selector labels, so the existing
 # allow-dns and allow-egress-internet NetworkPolicies apply to it as-is.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "irl-jobops.fullname" . }}-pipeline-cron
-  namespace: {{ .Release.Namespace }}
+  # CronJob names must stay <= 52 chars (job names get an 11-char suffix);
+  # fullname is 17 chars, so preset names up to ~29 chars are safe.
+  name: {{ include "irl-jobops.fullname" $ }}-cron-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "irl-jobops.labels" . | nindent 4 }}
+    {{- include "irl-jobops.labels" $ | nindent 4 }}
     app.kubernetes.io/component: pipeline-cron
 spec:
-  schedule: {{ .Values.pipelineCron.schedule | quote }}
-  timeZone: {{ .Values.pipelineCron.timeZone | quote }}
+  schedule: {{ .schedule | quote }}
+  timeZone: {{ $.Values.pipelineCron.timeZone | quote }}
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
@@ -28,7 +35,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "irl-jobops.labels" . | nindent 12 }}
+            {{- include "irl-jobops.labels" $ | nindent 12 }}
             app.kubernetes.io/component: pipeline-cron
         spec:
           restartPolicy: Never
@@ -36,25 +43,25 @@ spec:
           # Same ndots:1 fix as the app pod: the cluster default (ndots:5 +
           # search domains) makes musl's resolver in the curl image fail on
           # external FQDNs, so force absolute-name resolution first.
-          {{- with .Values.dnsConfig }}
+          {{- with $.Values.dnsConfig }}
           dnsConfig:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.podSecurityContext }}
+          {{- with $.Values.podSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           containers:
             - name: trigger
-              image: "{{ .Values.pipelineCron.image.repository }}@{{ .Values.pipelineCron.image.digest }}"
-              imagePullPolicy: {{ .Values.pipelineCron.image.pullPolicy }}
-              {{- with .Values.containerSecurityContext }}
+              image: "{{ $.Values.pipelineCron.image.repository }}@{{ $.Values.pipelineCron.image.digest }}"
+              imagePullPolicy: {{ $.Values.pipelineCron.image.pullPolicy }}
+              {{- with $.Values.containerSecurityContext }}
               securityContext:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               envFrom:
                 - secretRef:
-                    name: {{ .Values.pipelineCron.existingSecret }}
+                    name: {{ $.Values.pipelineCron.existingSecret }}
               command:
                 - /bin/sh
                 - -ec
@@ -62,12 +69,12 @@ spec:
                 # status code travel through the shell variable only.
                 - |
                   out=$(curl -sS --retry 3 --retry-all-errors --retry-delay 5 \
-                    -w '\n%{http_code}' -X POST {{ .Values.pipelineCron.url | quote }} \
+                    -w '\n%{http_code}' -X POST {{ $.Values.pipelineCron.url | quote }} \
                     -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
                     -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
                     -H "Authorization: Bearer ${JOBOPS_API_KEY}" \
                     -H 'Content-Type: application/json' \
-                    --data {{ .Values.pipelineCron.body | quote }})
+                    --data {{ printf "{\"presetName\":%q}" .name | quote }})
                   code=$(printf '%s' "$out" | tail -n1)
                   body=$(printf '%s' "$out" | sed '$d')
                   echo "status=$code body=$body"
@@ -77,5 +84,6 @@ spec:
                     *) exit 1 ;;
                   esac
               resources:
-                {{- toYaml .Values.pipelineCron.resources | nindent 16 }}
+                {{- toYaml $.Values.pipelineCron.resources | nindent 16 }}
+{{- end }}
 {{- end }}

@@ -151,10 +151,19 @@ dnsConfig:
 # without touching this chart. Watchlist sources follow the preset.
 pipelineCron:
   enabled: true
-  schedule: "0 7 * * *"
   timeZone: "America/New_York"
   url: "https://jops.infiniteroomlabs.com/api/pipeline/run"
-  body: '{"presetName":"daily-agentic-ai"}'
+  # One CronJob per preset; the POST body is {"presetName":"<name>"}. The
+  # orchestrator 409-rejects (does not queue) overlapping runs, so keep
+  # schedules staggered wider than a typical run (~10 min as of 2026-08).
+  # Preset names also become part of the CronJob name: keep them <= ~29 chars.
+  presets:
+    - name: daily-agentic-ai
+      schedule: "0 7 * * *"
+    - name: daily-midlevel-sustainable
+      schedule: "45 7 * * *"
+    - name: daily-qa-automation
+      schedule: "30 8 * * *"
   # Secret keys: CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (Cloudflare
   # Access service token) and JOBOPS_API_KEY (JobOps API key "k8s-pipeline-cron").
   # Created out-of-band, same as the other secrets in this namespace.
