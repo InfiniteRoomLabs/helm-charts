@@ -1,0 +1,22 @@
+Palworld server "{{ .Release.Name }}" deployed to namespace {{ .Release.Namespace }}.
+
+FIRST BOOT TAKES A WHILE. SteamCMD pulls the ~8-20Gi server install before
+anything listens. Watch it:
+
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-palworld.fullname" . }}
+
+Connect from the LAN (no Tailscale needed, e.g. Steam Deck):
+
+  Join Multiplayer Game -> direct connect -> <node-lan-ip>:{{ .Values.service.game.nodePort }}
+
+From the tailnet the same works against the node's Tailscale IP.
+
+RCON is enabled pod-internally (graceful saves + auto-reboot). To use it by
+hand:
+
+  kubectl -n {{ .Release.Namespace }} exec -it deploy/{{ include "irl-palworld.fullname" . }} -- rcon-cli ShowPlayers
+
+{{- if not .Values.persistence.enabled }}
+
+WARNING: persistence is disabled. Your Pals die with the pod.
+{{- end }}

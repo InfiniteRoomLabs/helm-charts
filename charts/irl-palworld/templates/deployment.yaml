@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-palworld.fullname" . }}
+  labels:
+    {{- include "irl-palworld.labels" . | nindent 4 }}
+spec:
+  # One world, one process. Not horizontally scalable.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-palworld.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "irl-palworld.selectorLabels" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: palworld
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: game
+              containerPort: {{ .Values.server.gamePort }}
+              protocol: UDP
+            - name: rest-api
+              containerPort: {{ .Values.restApi.port }}
+              protocol: TCP
+          env:
+            - name: SERVER_NAME
+              value: {{ .Values.server.name | quote }}
+            - name: PLAYERS
+              value: {{ .Values.server.players | quote }}
+            - name: PUID
+              value: {{ .Values.server.puid | quote }}
+            - name: PGID
+              value: {{ .Values.server.pgid | quote }}
+            - name: PORT
+              value: {{ .Values.server.gamePort | quote }}
+            - name: COMMUNITY
+              value: {{ .Values.server.community | quote }}
+            - name: UPDATE_ON_BOOT
+              value: {{ .Values.server.updateOnBoot | quote }}
+            - name: TZ
+              value: {{ .Values.server.timezone | quote }}
+            - name: RCON_ENABLED
+              value: {{ .Values.rcon.enabled | quote }}
+            - name: RCON_PORT
+              value: {{ .Values.rcon.port | quote }}
+            {{- if .Values.rcon.enabled }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.rcon.existingSecret }}
+                  key: ADMIN_PASSWORD
+            {{- end }}
+            - name: REST_API_ENABLED
+              value: {{ .Values.restApi.enabled | quote }}
+            - name: REST_API_PORT
+              value: {{ .Values.restApi.port | quote }}
+            - name: BACKUP_ENABLED
+              value: {{ .Values.backup.enabled | quote }}
+            - name: BACKUP_CRON_EXPRESSION
+              value: {{ .Values.backup.cron | quote }}
+            - name: DELETE_OLD_BACKUPS
+              value: {{ .Values.backup.deleteOld | quote }}
+            - name: OLD_BACKUP_DAYS
+              value: {{ .Values.backup.keepDays | quote }}
+            - name: AUTO_REBOOT_ENABLED
+              value: {{ .Values.autoReboot.enabled | quote }}
+            - name: AUTO_REBOOT_CRON_EXPRESSION
+              value: {{ .Values.autoReboot.cron | quote }}
+            - name: AUTO_REBOOT_EVEN_IF_PLAYERS_ONLINE
+              value: {{ .Values.autoReboot.evenIfPlayersOnline | quote }}
+            {{- range $k, $v := .Values.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          # SteamCMD pulls the server install before anything listens. Without
+          # a generous startup probe the pod CrashLoops forever on a cold
+          # volume. The game port is UDP, so the REST API TCP port is the
+          # honest "server is actually up" signal.
+          startupProbe:
+            tcpSocket:
+              port: rest-api
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: rest-api
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: rest-api
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /palworld
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

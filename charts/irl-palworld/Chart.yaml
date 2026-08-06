@@ -1,0 +1,17 @@
+apiVersion: v2
+name: irl-palworld
+description: Palworld dedicated server (thijsvanloef/palworld-server-docker) with NodePort LAN exposure and ZFS-backed persistence
+type: application
+version: 0.1.0
+# Tracks the thijsvanloef image release, not the game version. The image
+# self-updates game files via SteamCMD on container start unless UPDATE_ON_BOOT=false.
+appVersion: "v2.7.1"
+keywords:
+  - palworld
+  - game-server
+  - steamcmd
+maintainers:
+  - name: Infinite Room Labs
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/thijsvanloef/palworld-server-docker
