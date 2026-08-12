@@ -1,0 +1,168 @@
+# irl-gunio-mcp/values.yaml
+# ==========================
+# gunio-mcp: unofficial gun.io MCP server (InfiniteRoomLabs/gunio-mcp), run in
+# --serve mode (FastMCP streamable HTTP). Reached ONLY through the co-located
+# cloudflared sidecar over pod-localhost:8000 -- the app binds 127.0.0.1, so
+# nothing outside the pod can reach it even without NetworkPolicy. There is
+# deliberately NO Service and NO IngressRoute; the tunnel replaces both. The
+# public hostname (gunio.mcp.infiniteroomlabs.com) is bound to the tunnel in
+# Terraform (tunnel-gunio leaf), not here.
+#
+# Secrets are NOT bw-synced: two ExternalSecrets (below) materialize them from
+# HashiCorp Vault via External Secrets Operator (first use of the Vault + ESO
+# pattern).
+#
+# Namespace: gunio   (set at `helm install -n gunio`; templates honor .Release.Namespace)
+
+# -------- app image (ghcr.io/infiniteroomlabs/gunio-mcp, pinned BY DIGEST) --------
+# Digest-pinned for supply-chain safety. Replace the placeholder with the real
+# manifest digest of the v0.2.0 release, e.g. digest: "sha256:0123abcd...".
+# The image reference is rendered as "{repository}@{digest}", so a tag is
+# intentionally not used.
+image:
+  repository: ghcr.io/infiniteroomlabs/gunio-mcp
+  digest: "REPLACE_WITH_DIGEST"
+  pullPolicy: IfNotPresent
+
+# Pull secrets for private registries. Each entry: { name: <k8s docker-registry
+# secret in this namespace> }.
+imagePullSecrets: []
+
+# App runtime config. The image ENTRYPOINT is `gunio-mcp`; args switch it from
+# stdio (default) to streamable HTTP. The loopback bind is deliberate: only the
+# cloudflared sidecar (same pod network namespace) can reach the listener.
+#
+# GUNIO_MCP_AUTH_TOKEN is intentionally NOT set: the Cloudflare MCP portal's
+# OAuth occupies the Authorization header. If the portal turns out to support
+# injecting an origin Authorization header, add the token to the Vault path
+# gunio-mcp/app (it flows through the dataFrom extract below) -- a values-only
+# change here is never needed for that. GUNIO_MCP_INSECURE must stay unset
+# (loopback bind needs no insecure override); GUNIO_MCP_WRITE_SCOPE stays
+# unset (writes disabled).
+app:
+  port: 8000
+  args:
+    - "--serve"
+  env:
+    GUNIO_MCP_HOST: "127.0.0.1"
+    GUNIO_MCP_PORT: "8000"
+
+# App secrets (GUNIO_COOKIE today; GUNIO_USERNAME/GUNIO_PASSWORD in phase 2)
+# surfaced via envFrom. Materialized by the ExternalSecret below (Vault path
+# gunio-mcp/app) -- key names in Vault ARE the env var names.
+existingSecret: gunio-mcp-secrets
+
+# readOnlyRootFilesystem is true, so every path the app writes needs a writable
+# emptyDir. The server is stateless; /tmp is enough.
+writableEmptyDirs:
+  - name: tmp
+    mountPath: /tmp
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "50m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# -------- hardened security contexts (shared by both containers) --------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level: applied to gunio-mcp AND cloudflared.
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# -------- cloudflared tunnel sidecar (pinned BY DIGEST) --------
+# Runs the tunnel from a TOKEN FILE mounted from a Secret. The token is NOT
+# passed as an arg -- k8s container args are not shell-expanded, so
+# "$TUNNEL_TOKEN" would be sent literally. --token-file reads the value at
+# runtime instead.
+cloudflared:
+  # Toggle the tunnel sidecar. Keep true for production (the tunnel is the only
+  # ingress path). Set false for a staged app-only bring-up before the tunnel
+  # token exists -- reach the app via `kubectl port-forward` in that window.
+  enabled: true
+  image:
+    repository: cloudflare/cloudflared
+    digest: "REPLACE_WITH_DIGEST"
+    pullPolicy: IfNotPresent
+  # Secret holding the tunnel token. Key is projected to a file and passed via
+  # --token-file (see templates/deployment.yaml). Materialized by the
+  # ExternalSecret below (Vault path gunio-mcp/cloudflared).
+  tunnelToken:
+    existingSecret: gunio-cloudflared-token
+    key: token
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+# -------- ExternalSecrets (Vault via External Secrets Operator) --------
+# Chart-owned ExternalSecret objects; ESO materializes the two Secrets the pod
+# consumes. Requires the ESO CRDs and the referenced (Cluster)SecretStore to
+# exist BEFORE this chart is installed -- see the deploy ordering note in the
+# chart README. Vault paths are relative to the store's KV v2 mount (irl/).
+#
+# NOTE: envFrom is not hot-reloaded. ESO refreshing the Secret does NOT update
+# a running pod; rotation needs `kubectl -n gunio rollout restart deploy/...`
+# after the refresh lands.
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
+  storeRef:
+    name: vault-irl
+    kind: ClusterSecretStore
+  # App secret: dataFrom extract, so EVERY key at the Vault path flows into the
+  # Secret without chart changes (phase 2 adds GUNIO_USERNAME/GUNIO_PASSWORD;
+  # decision 3 may add GUNIO_MCP_AUTH_TOKEN at the same path).
+  app:
+    vaultPath: "gunio-mcp/app"
+  # Tunnel token: single explicit key.
+  cloudflared:
+    vaultPath: "gunio-mcp/cloudflared"
+    vaultKey: "token"
+
+# -------- network policy --------
+networkPolicy:
+  enabled: true
+  # Tighter than the JobOps allow-all-internet stance: this workload has no
+  # scraping job. Egress is DNS to CoreDNS plus, when egressInternet is
+  # enabled, only 443/tcp (gun.io API + cloudflared http2 fallback) and
+  # 7844/udp+tcp (cloudflared QUIC/http2) to PUBLIC addresses -- RFC1918,
+  # CGNAT and link-local stay denied.
+  egressInternet:
+    enabled: true
+
+# -------- scheduling --------
+# Stateless workload; no node pinning by default.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Force ndots:1 so external FQDNs (app.gun.io, Cloudflare edge) resolve as
+# absolute names on the first query. gunio-mcp has no in-cluster service
+# dependencies, so short-name resolution is not needed.
+dnsConfig:
+  options:
+    - name: ndots
+      value: "1"

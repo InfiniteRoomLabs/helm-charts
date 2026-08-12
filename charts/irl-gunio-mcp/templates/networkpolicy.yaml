@@ -1,0 +1,109 @@
+{{- if .Values.networkPolicy.enabled }}
+# ============================================================================
+# NetworkPolicies for the gunio namespace.
+#
+# Model: deny everything, then additively allow only (a) DNS to CoreDNS and
+# (b) the two egress port sets this pod actually needs, to PUBLIC addresses
+# only: 443/tcp (gun.io API from the app; cloudflared http2 transport) and
+# 7844/udp+tcp (cloudflared QUIC/http2 to the Cloudflare edge). This is
+# deliberately tighter than the JobOps all-ports stance -- gunio-mcp has no
+# scraping job, so there is nothing else to allow.
+#
+# There are NO ingress allow rules on purpose: the only client of the app is
+# the cloudflared sidecar in the SAME pod, which reaches it over the pod
+# loopback (localhost). Same-pod loopback traffic is not subject to
+# NetworkPolicy, so no ingress rule is needed -- and none is granted.
+#
+# FQDN pinning (allowing app.gun.io and the Cloudflare edge by NAME instead of
+# "any public IP on these ports") is NOT expressible in vanilla NetworkPolicy;
+# it needs Cilium's FQDN policies or the node-level nftables denyset approach
+# (scripts/gen-jobops-nft-denyset.sh in the infra repo). Deferred.
+#
+# IPv6 NOTE: an IPv4 ipBlock (0.0.0.0/0) cannot carry IPv6 excepts like
+# fc00::/7. If pods get IPv6 addresses, EITHER disable pod IPv6 OR add a
+# SEPARATE NetworkPolicy with an ::/0 ipBlock and IPv6 private excepts.
+# Otherwise IPv6 egress is uncontrolled by this policy.
+# ============================================================================
+---
+# (a) default-deny-all: no ingress, no egress for any pod in the namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-gunio-mcp.fullname" . }}-default-deny-all
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-gunio-mcp.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# (b) allow-dns: egress to CoreDNS in kube-system on 53/udp + 53/tcp.
+# The namespaceSelector AND podSelector both sit in one `to` element so they
+# are ANDed -- CoreDNS pods (k8s-app=kube-dns) inside kube-system only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-gunio-mcp.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-gunio-mcp.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-gunio-mcp.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.networkPolicy.egressInternet.enabled }}
+---
+# (c) allow-egress-internet: 443/tcp + 7844/udp+tcp to the public internet,
+# excluding RFC1918, CGNAT (100.64.0.0/10) and link-local (169.254.0.0/16).
+# cloudflared uses 7844 (QUIC/http2) with 443/tcp as fallback; the app uses
+# 443/tcp to reach app.gun.io. In-cluster/private targets remain blocked on
+# every port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-gunio-mcp.fullname" . }}-allow-egress-internet
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-gunio-mcp.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-gunio-mcp.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 7844
+        - protocol: TCP
+          port: 7844
+{{- end }}
+{{- end }}
