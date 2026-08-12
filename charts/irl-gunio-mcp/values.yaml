@@ -21,7 +21,8 @@
 # intentionally not used.
 image:
   repository: ghcr.io/infiniteroomlabs/gunio-mcp
-  digest: "REPLACE_WITH_DIGEST"
+  # v0.2.0
+  digest: "sha256:ea43df7802d5d7d6c2899a28149fd0804f2d9fd6aa492af4f890e4f81c573c84"
   pullPolicy: IfNotPresent
 
 # Pull secrets for private registries. Each entry: { name: <k8s docker-registry
@@ -101,7 +102,7 @@ cloudflared:
   enabled: true
   image:
     repository: cloudflare/cloudflared
-    digest: "REPLACE_WITH_DIGEST"
+    digest: "sha256:e39ee8da81ad5e05d77f38d2f51c60ca51bf2a8450ac3abab50c17fdb91d91bf"
     pullPolicy: IfNotPresent
   # Secret holding the tunnel token. Key is projected to a file and passed via
   # --token-file (see templates/deployment.yaml). Materialized by the

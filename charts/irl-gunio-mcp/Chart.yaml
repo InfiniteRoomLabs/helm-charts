@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-gunio-mcp
 description: gun.io MCP server (streamable HTTP), exposed only via a Cloudflare Tunnel sidecar (no Service, no IngressRoute); secrets synced from HashiCorp Vault by External Secrets Operator
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.2.0"
 keywords:
   - gunio
