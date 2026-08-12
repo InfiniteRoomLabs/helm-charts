@@ -2,7 +2,7 @@
 
 Unofficial gun.io MCP server ([InfiniteRoomLabs/gunio-mcp](https://github.com/InfiniteRoomLabs/gunio-mcp))
 in `--serve` mode (FastMCP streamable HTTP), published at
-`https://gunio.mcp.infiniteroomlabs.com/mcp` through a Cloudflare Tunnel and
+`https://gunio-mcp.infiniteroomlabs.com/mcp` through a Cloudflare Tunnel and
 gated by Cloudflare Access.
 
 ## Topology: no Service, no Ingress

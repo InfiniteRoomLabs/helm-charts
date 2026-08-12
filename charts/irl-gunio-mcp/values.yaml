@@ -5,7 +5,7 @@
 # cloudflared sidecar over pod-localhost:8000 -- the app binds 127.0.0.1, so
 # nothing outside the pod can reach it even without NetworkPolicy. There is
 # deliberately NO Service and NO IngressRoute; the tunnel replaces both. The
-# public hostname (gunio.mcp.infiniteroomlabs.com) is bound to the tunnel in
+# public hostname (gunio-mcp.infiniteroomlabs.com) is bound to the tunnel in
 # Terraform (tunnel-gunio leaf), not here.
 #
 # Secrets are NOT bw-synced: two ExternalSecrets (below) materialize them from
