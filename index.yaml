@@ -149,7 +149,46 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-gitea-0.1.0/irl-gitea-0.1.0.tgz
     version: 0.1.0
+  irl-gunio-mcp:
+  - apiVersion: v2
+    appVersion: 0.2.0
+    created: "2026-08-12T17:08:54.731226487Z"
+    description: gun.io MCP server (streamable HTTP), exposed only via a Cloudflare
+      Tunnel sidecar (no Service, no IngressRoute); secrets synced from HashiCorp
+      Vault by External Secrets Operator
+    digest: 4eb67825bc7619582a1f0a08bfea375e959122975ea37aa4e0d42de62304195c
+    keywords:
+    - gunio
+    - mcp
+    - cloudflare-tunnel
+    - external-secrets
+    - self-hosted
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-gunio-mcp
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-gunio-mcp-0.1.1/irl-gunio-mcp-0.1.1.tgz
+    version: 0.1.1
   irl-jobops:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-08-12T17:08:54.921457863Z"
+    description: JobOps self-hosted job-hunting app, exposed only via a Cloudflare
+      Tunnel sidecar (no Service, no IngressRoute)
+    digest: 8ffef22b023288a9ca90ec9d37b49f3ad16f92d3d472adc60fb96ae41b3aade9
+    keywords:
+    - jobops
+    - job-search
+    - cloudflare-tunnel
+    - self-hosted
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-jobops
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-jobops-0.3.0/irl-jobops-0.3.0.tgz
+    version: 0.3.0
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-08-01T23:20:02.705340569Z"
@@ -419,6 +458,27 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-openviking-0.1.0/irl-openviking-0.1.0.tgz
     version: 0.1.0
+  irl-palworld:
+  - apiVersion: v2
+    appVersion: v2.7.1
+    created: "2026-08-12T17:08:55.140094039Z"
+    description: Palworld dedicated server (thijsvanloef/palworld-server-docker) with
+      NodePort LAN exposure and ZFS-backed persistence
+    digest: 1854752b5db4da8878148d603072d4f11f7d3f00293af86a4e4bfe611435dc64
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - palworld
+    - game-server
+    - steamcmd
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-palworld
+    sources:
+    - https://github.com/thijsvanloef/palworld-server-docker
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-palworld-0.1.0/irl-palworld-0.1.0.tgz
+    version: 0.1.0
   irl-paperless:
   - apiVersion: v2
     appVersion: 2.20.14
@@ -603,4 +663,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-01T23:20:02.899541023Z"
+generated: "2026-08-12T17:08:55.140160884Z"
