@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-08-13
+
+### Added
+
+- `irl-jobops` v0.3.1: Tracer links + Gmail OAuth deploy config as tracked chart defaults. `app.env` gains `JOBOPS_PUBLIC_BASE_URL` (tracer readiness probes `<base>/health`; the tunnel config carries Access bypass apps for `/cv/*` and `/health`) and `GMAIL_OAUTH_REDIRECT_URI` (Tracking Inbox OAuth callback). Gmail client id/secret are deliberately NOT chart values -- they land in the `jobops-secrets` Secret (bw-sync lane, keys `GMAIL_OAUTH_CLIENT_ID`/`GMAIL_OAUTH_CLIENT_SECRET`) and reach the app through the existing `existingSecret` envFrom.
+
 ## [0.13.0] - 2026-08-01
 
 ### Added

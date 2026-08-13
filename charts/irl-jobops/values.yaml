@@ -29,6 +29,13 @@ app:
     JOBOPS_DISABLE_ANALYTICS: "true"
     NODE_ENV: "production"
     PORT: "3001"
+    # Tracer links + readiness probe target (paths /cv/* and /health carry
+    # Access bypass apps in the tunnel config).
+    JOBOPS_PUBLIC_BASE_URL: "https://jops.infiniteroomlabs.com"
+    # Gmail OAuth (Tracking Inbox). Client id/secret are NOT here -- they arrive
+    # via existingSecret (jobops-secrets, bw-sync lane) as GMAIL_OAUTH_CLIENT_ID
+    # and GMAIL_OAUTH_CLIENT_SECRET.
+    GMAIL_OAUTH_REDIRECT_URI: "https://jops.infiniteroomlabs.com/oauth/gmail/callback"
 
 # App secrets (API keys, Gmail OAuth creds, etc.) surfaced via envFrom.
 # Populated out-of-band by scripts/bw-sync.sh (Bitwarden -> K8s Secret).
