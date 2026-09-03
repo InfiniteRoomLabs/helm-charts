@@ -173,6 +173,24 @@ entries:
   irl-jobops:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-09-03T18:50:40.544826096Z"
+    description: JobOps self-hosted job-hunting app, exposed only via a Cloudflare
+      Tunnel sidecar (no Service, no IngressRoute)
+    digest: 8c3fc9e703e299e548e9a88812c1153560186c1b1c99fcb96dbc1bff8dbfde27
+    keywords:
+    - jobops
+    - job-search
+    - cloudflare-tunnel
+    - self-hosted
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-jobops
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-jobops-0.3.1/irl-jobops-0.3.1.tgz
+    version: 0.3.1
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-08-12T17:08:54.921457863Z"
     description: JobOps self-hosted job-hunting app, exposed only via a Cloudflare
       Tunnel sidecar (no Service, no IngressRoute)
@@ -482,6 +500,34 @@ entries:
   irl-paperless:
   - apiVersion: v2
     appVersion: 2.20.14
+    created: "2026-09-03T18:50:40.765881356Z"
+    dependencies:
+    - alias: paperless
+      name: paperless-ngx
+      repository: oci://ghcr.io/gabe565/charts
+      version: 0.24.1
+    description: Paperless-ngx with external CNPG PostgreSQL + Valkey, Traefik IngressRoute,
+      Authentik OIDC, and Garage S3 backups. Wraps gabe565/paperless-ngx.
+    digest: 28dadb400b524f4c968a963a6daa338aa5272bf5f0e2efdbf4ff0178fdc3bbda
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - documents
+    - document-management
+    - ocr
+    - paperless
+    kubeVersion: '>=1.27.0-0'
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-paperless
+    sources:
+    - https://github.com/paperless-ngx/paperless-ngx
+    - https://github.com/gabe565/charts/tree/main/charts/paperless-ngx
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-paperless-0.2.1/irl-paperless-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
+    appVersion: 2.20.14
     created: "2026-04-14T23:14:44.590470904Z"
     dependencies:
     - alias: paperless
@@ -663,4 +709,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-12T17:08:55.140160884Z"
+generated: "2026-09-03T18:50:40.765911473Z"
