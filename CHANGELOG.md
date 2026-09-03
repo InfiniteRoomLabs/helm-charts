@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2026-09-03
+
+### Fixed
+
+- `irl-paperless` v0.2.1: The nightly `paperless-backup` CronJob never succeeded. Three bugs: (1) the exporter mounted the data/media PVCs `readOnly`, but paperless' Django startup path check writes a probe file into `DATA_DIR` and `MEDIA_ROOT`, so `document_exporter` died with `EROFS` before exporting anything; mounts are now read-write (the exporter only ever writes that probe file). (2) The uploader targeted the public `https://s3.internal...` endpoint whose self-signed cert aws-cli rejects (`CERTIFICATE_VERIFY_FAILED`); default `backup.s3.endpoint` is now the in-cluster plain-HTTP Garage service `http://garage:3900`. (3) aws-cli >= 2.23 sends CRC64NVME integrity checksums on multipart uploads, which Garage rejects with `invalid checksum algorithm`; the uploader now sets `AWS_REQUEST_CHECKSUM_CALCULATION`/`AWS_RESPONSE_CHECKSUM_VALIDATION=when_required`, and the uploader image is pinned to `2.36.38` instead of `latest`.
+
 ## [0.13.1] - 2026-08-13
 
 ### Added

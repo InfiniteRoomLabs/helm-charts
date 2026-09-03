@@ -230,9 +230,11 @@ backup:
   uploader:
     image:
       repository: amazon/aws-cli
-      tag: "latest"
+      tag: "2.36.38"
   s3:
-    endpoint: "https://s3.internal.lab.infiniteroomlabs.cloud"
+    # In-cluster Garage S3 API (plain HTTP). The public https endpoint is a
+    # self-signed cert that aws-cli rejects (SSL: CERTIFICATE_VERIFY_FAILED).
+    endpoint: "http://garage:3900"
     bucket: "paperless-backups"
     existingSecret: paperless-backup-s3
   retentionDays: 30

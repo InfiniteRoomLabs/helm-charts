@@ -82,7 +82,7 @@ spec:
                   set -eu
                   echo "Uploading exports to ${S3_BUCKET}..."
                   aws --endpoint-url="${S3_ENDPOINT}" s3 cp /export/ "s3://${S3_BUCKET}/" \
-                    --recursive --exclude '*' --include '*.zip'
+                    --recursive --exclude '*' --include '*.zip' --no-progress
 
                   echo "Cleaning local export dir..."
                   find /export -maxdepth 1 -name '*.zip' -type f -delete
@@ -109,6 +109,13 @@ spec:
                   value: {{ .Values.backup.retentionDays | quote }}
                 - name: AWS_EC2_METADATA_DISABLED
                   value: "true"
+                # aws-cli >= 2.23 sends CRC64NVME integrity checksums by default;
+                # Garage rejects them ("invalid checksum algorithm"). Only checksum
+                # where the S3 API actually requires it.
+                - name: AWS_REQUEST_CHECKSUM_CALCULATION
+                  value: "when_required"
+                - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+                  value: "when_required"
               envFrom:
                 - secretRef:
                     name: {{ .Values.backup.s3.existingSecret }}
@@ -118,14 +125,15 @@ spec:
               resources:
                 {{- toYaml .Values.backup.resources | nindent 16 }}
           volumes:
+            # NOT readOnly: paperless' Django startup check writes (and removes) a
+            # probe file in DATA_DIR and MEDIA_ROOT before any command runs, so a
+            # read-only mount makes document_exporter fail with EROFS on boot.
             - name: paperless-data
               persistentVolumeClaim:
                 claimName: paperless-data-pvc
-                readOnly: true
             - name: paperless-media
               persistentVolumeClaim:
                 claimName: paperless-media-pvc
-                readOnly: true
             - name: paperless-export
               persistentVolumeClaim:
                 claimName: paperless-export-pvc
