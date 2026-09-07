@@ -53,6 +53,14 @@ spec:
           ports:
             - name: mysql
               containerPort: 3306
+          # First boot initializes the datadir (~2 min). Without a startup
+          # probe the liveness probe kills it mid-init and leaves a half-written
+          # /var/lib/mysql that every later start refuses.
+          startupProbe:
+            exec:
+              command: ["bash", "-c", "mysqladmin ping -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            periodSeconds: 10
+            failureThreshold: 60
           readinessProbe:
             exec:
               command: ["bash", "-c", "mysqladmin ping -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]

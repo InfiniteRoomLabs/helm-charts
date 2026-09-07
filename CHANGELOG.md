@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-09-06
+
+### Added
+
+- `irl-wotlk` v0.1.0 / v0.1.1: New chart for a World of Warcraft WotLK 3.3.5a private server (the mod-playerbots fork of AzerothCore, 1600-2000 AI players). Three workloads: `authserver` Deployment, `worldserver` Deployment, and a bundled MySQL 8.4 StatefulSet (first MySQL in the repo; nothing shared to join). Client data (~15Gi, wowgaming/client-data) and the world DB import run as initContainers on the worldserver pod rather than Jobs, and the `db-import` step stamps `acore_auth.realmlist` with the externally reachable address:port on every start. Both daemons listen directly on their NodePort numbers (30724 auth, 30085 world) because the authserver hands clients the realm's address:port; one NodePort Service per daemon. Exposure is tailnet-only by omission (no LAN firewall entry, no LAN NetworkPolicy). Images are node-local (`irl/ac-wotlk-*`, imported into k3s containerd by the infra repo's `wotlk-build-images.sh`), so `pullPolicy: IfNotPresent` and a `nodeSelector` pin. The worldserver container keeps stdin/tty so `kubectl attach` reaches the `AC>` console. v0.1.1 adds a `startupProbe` to mysql: first-boot datadir initialization takes ~2 minutes and the liveness probe was killing it mid-way, leaving an unusable half-written datadir.
+
 ## [0.13.2] - 2026-09-03
 
 ### Fixed
