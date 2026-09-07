@@ -709,4 +709,29 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-vaultwarden-0.1.0/irl-vaultwarden-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-03T18:50:40.765911473Z"
+  irl-wotlk:
+  - apiVersion: v2
+    appVersion: pb-413bea6-b949b50
+    created: "2026-09-07T03:23:28.169796894Z"
+    description: World of Warcraft WotLK 3.3.5a private server (AzerothCore, mod-playerbots
+      fork) with bundled MySQL, tailnet-only NodePort exposure and ZFS-backed persistence
+    digest: 3c91eeceb065e3aa46bc0d36adf1bb536f165deb6f0fdff42e5af749a8a37b06
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - wow
+    - wotlk
+    - azerothcore
+    - playerbots
+    - game-server
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-wotlk
+    sources:
+    - https://github.com/mod-playerbots/azerothcore-wotlk
+    - https://github.com/mod-playerbots/mod-playerbots
+    - https://github.com/DadsMmoLab/dads-mmo-lab
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-wotlk-0.1.0/irl-wotlk-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-09-07T03:23:28.169875206Z"
