@@ -1,0 +1,42 @@
+{{- /* One NodePort Service per daemon; port numbers equal the listen ports. */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "irl-wotlk.fullname" . }}-auth
+  labels:
+    {{- include "irl-wotlk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: authserver
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: auth
+      port: {{ .Values.service.auth.port }}
+      targetPort: auth
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.auth.nodePort }}
+      nodePort: {{ .Values.service.auth.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "irl-wotlk.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: authserver
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "irl-wotlk.fullname" . }}-world
+  labels:
+    {{- include "irl-wotlk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worldserver
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: world
+      port: {{ .Values.service.world.port }}
+      targetPort: world
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.world.nodePort }}
+      nodePort: {{ .Values.service.world.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "irl-wotlk.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: worldserver

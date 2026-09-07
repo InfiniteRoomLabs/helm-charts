@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-wotlk.fullname" . }}-authserver
+  labels:
+    {{- include "irl-wotlk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: authserver
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-wotlk.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: authserver
+  template:
+    metadata:
+      labels:
+        {{- include "irl-wotlk.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: authserver
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The worldserver pod owns the DB import; just wait for it to land.
+      initContainers:
+        - name: wait-for-auth-db
+          image: "{{ .Values.image.repository }}/ac-wotlk-authserver:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bash", "-c", {{ include "irl-wotlk.waitForAuthDb" . | quote }}]
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mysql.existingSecret }}
+                  key: MYSQL_ROOT_PASSWORD
+      containers:
+        - name: authserver
+          image: "{{ .Values.image.repository }}/ac-wotlk-authserver:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: auth
+              containerPort: {{ .Values.authserver.port }}
+              protocol: TCP
+          env:
+            {{- include "irl-wotlk.dbEnv" . | nindent 12 }}
+            - name: AC_REALM_SERVER_PORT
+              value: {{ .Values.authserver.port | quote }}
+            - name: AC_BIND_IP
+              value: "0.0.0.0"
+          startupProbe:
+            tcpSocket:
+              port: auth
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: auth
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: auth
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.authserver.resources | nindent 12 }}

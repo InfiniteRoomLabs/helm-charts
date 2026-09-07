@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-wotlk.fullname" . }}-worldserver
+  labels:
+    {{- include "irl-wotlk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worldserver
+spec:
+  # One world, one process. Not horizontally scalable.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-wotlk.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worldserver
+  template:
+    metadata:
+      labels:
+        {{- include "irl-wotlk.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worldserver
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.worldserver.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # 1. Client data (maps/vmaps/mmaps/dbc, ~15Gi). Upstream's own
+        #    downloader; no-op once data.version matches.
+        - name: client-data
+          image: "{{ .Values.image.repository }}/ac-wotlk-client-data:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+            - name: client-data
+              mountPath: /azerothcore/env/dist/data
+        # 2. Schema + world DB import, then stamp the realm row with the
+        #    externally reachable address:port. Idempotent (acore's updater
+        #    tracks applied files; the UPDATE is absolute).
+        - name: db-import
+          image: "{{ .Values.image.repository }}/ac-wotlk-db-import:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              until mysqladmin ping -h {{ include "irl-wotlk.mysqlHost" . }} -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do echo "waiting for mysql..."; sleep 5; done
+              /azerothcore/entrypoint.sh /azerothcore/env/dist/bin/dbimport
+              mysql -h {{ include "irl-wotlk.mysqlHost" . }} -uroot -p"$MYSQL_ROOT_PASSWORD" acore_auth -e \
+                "UPDATE realmlist SET name='{{ .Values.realm.name }}', address='{{ .Values.realm.address }}', localAddress='{{ .Values.realm.localAddress }}', localSubnetMask='{{ .Values.realm.localSubnetMask }}', port={{ .Values.worldserver.port }} WHERE id=1;"
+          env:
+            {{- include "irl-wotlk.dbEnv" . | nindent 12 }}
+      containers:
+        - name: worldserver
+          image: "{{ .Values.image.repository }}/ac-wotlk-worldserver:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.worldserver.console }}
+          stdin: true
+          tty: true
+          {{- end }}
+          ports:
+            - name: world
+              containerPort: {{ .Values.worldserver.port }}
+              protocol: TCP
+          env:
+            {{- include "irl-wotlk.dbEnv" . | nindent 12 }}
+            - name: AC_WORLD_SERVER_PORT
+              value: {{ .Values.worldserver.port | quote }}
+            - name: AC_BIND_IP
+              value: "0.0.0.0"
+            - name: AC_SOAP_ENABLED
+              value: "0"
+            # mod-playerbots (values from the dads-mmo-lab compose override)
+            - name: AC_PLAYERBOTS_UPDATES_ENABLE_DATABASES
+              value: "1"
+            - name: AC_AI_PLAYERBOT_RANDOM_BOT_AUTOLOGIN
+              value: {{ ternary "1" "0" .Values.worldserver.bots.autologin | quote }}
+            - name: AC_AI_PLAYERBOT_MIN_RANDOM_BOTS
+              value: {{ .Values.worldserver.bots.min | quote }}
+            - name: AC_AI_PLAYERBOT_MAX_RANDOM_BOTS
+              value: {{ .Values.worldserver.bots.max | quote }}
+            {{- range $k, $v := .Values.worldserver.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: world
+            periodSeconds: {{ .Values.worldserver.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.worldserver.probes.startup.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: world
+            periodSeconds: {{ .Values.worldserver.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.worldserver.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: world
+            periodSeconds: {{ .Values.worldserver.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.worldserver.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.worldserver.resources | nindent 12 }}
+          volumeMounts:
+            - name: client-data
+              mountPath: /azerothcore/env/dist/data
+              readOnly: true
+      volumes:
+        - name: client-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.clientData.existingClaim }}

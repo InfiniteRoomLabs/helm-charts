@@ -1,0 +1,22 @@
+apiVersion: v2
+name: irl-wotlk
+description: World of Warcraft WotLK 3.3.5a private server (AzerothCore, mod-playerbots fork) with bundled MySQL, tailnet-only NodePort exposure and ZFS-backed persistence
+type: application
+version: 0.1.0
+# Tracks the image tag produced by infra scripts/wotlk-build-images.sh
+# (pb-<acore sha>-<mod-playerbots sha>), not a game version: the client is
+# always 3.3.5a build 12340.
+appVersion: "pb-413bea6-b949b50"
+keywords:
+  - wow
+  - wotlk
+  - azerothcore
+  - playerbots
+  - game-server
+maintainers:
+  - name: Infinite Room Labs
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/mod-playerbots/azerothcore-wotlk
+  - https://github.com/mod-playerbots/mod-playerbots
+  - https://github.com/DadsMmoLab/dads-mmo-lab

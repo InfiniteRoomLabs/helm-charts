@@ -1,0 +1,121 @@
+# irl-wotlk/values.yaml
+# =====================
+# AzerothCore WotLK (mod-playerbots fork) = authserver + worldserver + MySQL.
+# Config shape follows the dads-mmo-lab installer's compose override.
+#
+# Port design: same symmetric-NodePort rule as irl-satisfactory. The
+# authserver hands clients the realm's address:port from acore_auth.realmlist,
+# so the worldserver must listen on the very port the client reaches
+# externally. Both daemons therefore listen directly on their NodePort
+# numbers (AC_REALM_SERVER_PORT / AC_WORLD_SERVER_PORT are plain config keys).
+#
+# Exposure is tailnet-only BY OMISSION: nftables accepts tailscale0
+# unconditionally and the namespace's allow-ingress-tailscale NetworkPolicy
+# covers NodePorts, so no LAN firewall entry and no per-game NetworkPolicy
+# are added. Client realmlist.wtf: `set realmlist <dns-name>:30724`.
+#
+# Images are node-local (imported into k3s containerd by
+# scripts/wotlk-build-images.sh in the infra repo); there is no registry,
+# hence pullPolicy IfNotPresent and the nodeSelector pin below.
+
+image:
+  repository: irl
+  tag: "pb-413bea6-b949b50"
+  pullPolicy: IfNotPresent
+
+# Written into acore_auth.realmlist row 1 after the DB import. `address` is
+# what the authserver sends to clients: the node's Tailscale IP.
+realm:
+  name: "Infinite Room"
+  address: "100.86.213.22"
+  localAddress: "100.86.213.22"
+  localSubnetMask: "255.255.255.0"
+
+authserver:
+  # Listen port == service.auth.nodePort (see header).
+  port: 30724
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+
+worldserver:
+  # Listen port == service.world.nodePort == realmlist.port (see header).
+  port: 30085
+  # mod-playerbots population. 1600-2000 is the dads-mmo-lab default and
+  # what drives the memory numbers below.
+  bots:
+    min: 1600
+    max: 2000
+    autologin: true
+  # Anything else the fork's AC_* env mapping supports, rendered verbatim.
+  # Key = worldserver.conf / playerbots.conf key in UPPER_SNAKE with AC_ prefix.
+  extraEnv: {}
+    # AC_RATE_XP_KILL: "2"
+  # Console via `kubectl attach -it deploy/<fullname>-worldserver`
+  # (account create ...). Same mechanism as `docker attach` in wow-manage.sh.
+  console: true
+  resources:
+    requests:
+      memory: "10Gi"
+      cpu: "4"
+    limits:
+      memory: "16Gi"
+      # Deliberately no CPU limit: the world tick is latency-sensitive and CFS
+      # throttling shows up as rubber-banding. Requests + node pinning instead.
+  # First boot: ~15Gi client-data download (initContainer) + full DB import.
+  # Startup budget 120 * 30s = 60 minutes.
+  probes:
+    startup:
+      periodSeconds: 30
+      failureThreshold: 120
+    liveness:
+      periodSeconds: 30
+      failureThreshold: 5
+    readiness:
+      periodSeconds: 15
+      failureThreshold: 3
+  terminationGracePeriodSeconds: 120
+
+# Extracted client data (maps/vmaps/mmaps/dbc, wowgaming/client-data zip).
+# Hydrated by an initContainer on the worldserver pod, idempotent via the
+# data.version file it leaves behind. ZFS-backed PV created by ansible.
+clientData:
+  existingClaim: wotlk-data-pvc
+
+# Bundled MySQL 8.4 (what the upstream compose uses). Single replica; nothing
+# else in the cluster speaks MySQL so there is no shared instance to join.
+mysql:
+  image: "mysql:8.4"
+  # Secret must contain key MYSQL_ROOT_PASSWORD (bw-sync lane).
+  existingSecret: wotlk-secrets
+  existingClaim: wotlk-db-pvc
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+
+# Single NodePort Service; port numbers deliberately equal the listen ports.
+service:
+  type: NodePort
+  auth:
+    port: 30724
+    nodePort: 30724
+  world:
+    port: 30085
+    nodePort: 30085
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# Pin to the node that holds the imported images and the ZFS PVs.
+nodeSelector:
+  irl.dev/tier: data
+
+tolerations: []
+affinity: {}

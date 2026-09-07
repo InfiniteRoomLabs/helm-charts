@@ -1,0 +1,21 @@
+WotLK server "{{ .Release.Name }}" deployed to namespace {{ .Release.Namespace }}.
+
+FIRST BOOT TAKES 30-60 MINUTES: the worldserver pod's initContainers pull
+~15Gi of client data and import the full world DB before anything listens on
+port {{ .Values.worldserver.port }}. Watch it:
+
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-wotlk.fullname" . }}-worldserver -c client-data
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-wotlk.fullname" . }}-worldserver -c db-import
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-wotlk.fullname" . }}-worldserver
+
+Create the first account on the worldserver console (Ctrl-P Ctrl-Q detaches):
+
+  kubectl -n {{ .Release.Namespace }} attach -it deploy/{{ include "irl-wotlk.fullname" . }}-worldserver
+  account create <user> <password>
+  account set gmlevel <user> 3 -1
+
+Client (3.3.5a, e.g. ChromieCraft): Data/enUS/realmlist.wtf ->
+
+  set realmlist <tailnet dns name or {{ .Values.realm.address }}>:{{ .Values.service.auth.nodePort }}
+
+Realm "{{ .Values.realm.name }}" advertises {{ .Values.realm.address }}:{{ .Values.worldserver.port }}.
