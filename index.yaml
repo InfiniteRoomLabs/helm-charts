@@ -712,6 +712,27 @@ entries:
   irl-wordpress:
   - apiVersion: v2
     appVersion: 7.1.0
+    created: "2026-09-17T23:45:26.833988408Z"
+    description: Single-site WordPress (official apache image) with a bundled MariaDB,
+      chart-owned Traefik IngressRoute and externally-managed persistent claims
+    digest: 9bfb905d38ce884ac37fc95c9fefb3150caece8eabbfef0018ba848053133d31
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - wordpress
+    - cms
+    - blog
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-wordpress
+    sources:
+    - https://github.com/docker-library/wordpress
+    - https://github.com/MariaDB/mariadb-docker
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-wordpress-0.2.1/irl-wordpress-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
+    appVersion: 7.1.0
     created: "2026-09-17T23:17:49.060964286Z"
     description: Single-site WordPress (official apache image) with a bundled MariaDB,
       chart-owned Traefik IngressRoute and externally-managed persistent claims
@@ -801,4 +822,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-wotlk-0.1.0/irl-wotlk-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-17T23:17:49.061014272Z"
+generated: "2026-09-17T23:45:26.834037853Z"
