@@ -1,0 +1,13 @@
+{{ .Chart.Name }} {{ .Chart.Version }} deployed as release "{{ .Release.Name }}".
+
+  Site:      {{ .Values.wordpress.siteUrl }}
+  Database:  {{ include "irl-wordpress.mariadbHost" . }}:3306 ({{ .Values.mariadb.database }})
+  Volumes:   {{ .Values.wordpress.existingClaim }} -> /var/www/html
+             {{ .Values.mariadb.existingClaim }} -> /var/lib/mysql
+
+First install: open {{ .Values.wordpress.siteUrl }}/wp-admin/install.php and
+create the admin account. Nothing else is bootstrapped by this chart.
+
+Watch the first boot (core unpack + DB init):
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-wordpress.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs -f sts/{{ include "irl-wordpress.mariadbHost" . }}

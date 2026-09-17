@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "irl-wordpress.mariadbHost" . }}
+  labels:
+    {{- include "irl-wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
+spec:
+  type: ClusterIP
+  ports:
+    - name: mariadb
+      port: 3306
+      targetPort: mariadb
+  selector:
+    {{- include "irl-wordpress.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "irl-wordpress.mariadbHost" . }}
+  labels:
+    {{- include "irl-wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
+spec:
+  replicas: 1
+  serviceName: {{ include "irl-wordpress.mariadbHost" . }}
+  selector:
+    matchLabels:
+      {{- include "irl-wordpress.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mariadb
+  template:
+    metadata:
+      labels:
+        {{- include "irl-wordpress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mariadb
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: {{ .Values.mariadb.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The image starts as root and drops to uid 999; the hostPath
+          # dataset behind existingClaim is chowned to 999 by the operator.
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "mariadb.existingSecret is required" .Values.mariadb.existingSecret }}
+                  key: MARIADB_ROOT_PASSWORD
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mariadb.existingSecret }}
+                  key: MARIADB_PASSWORD
+            # DATABASE/USER are only acted on when the datadir is empty, i.e.
+            # first boot. Changing them later is a no-op, not a rename.
+            - name: MARIADB_DATABASE
+              value: {{ .Values.mariadb.database | quote }}
+            - name: MARIADB_USER
+              value: {{ .Values.mariadb.user | quote }}
+            # utf8mb4 end to end -- WordPress assumes it and emoji in post
+            # titles are the classic way to find out you did not have it.
+            - name: MARIADB_AUTO_UPGRADE
+              value: "1"
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+          ports:
+            - name: mariadb
+              containerPort: 3306
+          # First boot initializes the datadir; without a startup probe the
+          # liveness probe kills it mid-init and leaves a half-written
+          # /var/lib/mysql that every later start refuses (irl-wotlk 0.1.1).
+          startupProbe:
+            exec:
+              command: ["bash", "-c", "mariadb-admin ping -uroot -p\"$MARIADB_ROOT_PASSWORD\" --silent"]
+            {{- toYaml .Values.mariadb.probes.startup | nindent 12 }}
+          readinessProbe:
+            exec:
+              command: ["bash", "-c", "mariadb-admin ping -uroot -p\"$MARIADB_ROOT_PASSWORD\" --silent"]
+            {{- toYaml .Values.mariadb.probes.readiness | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["bash", "-c", "mariadb-admin ping -uroot -p\"$MARIADB_ROOT_PASSWORD\" --silent"]
+            {{- toYaml .Values.mariadb.probes.liveness | nindent 12 }}
+          resources:
+            {{- toYaml .Values.mariadb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ required "mariadb.existingClaim is required" .Values.mariadb.existingClaim }}

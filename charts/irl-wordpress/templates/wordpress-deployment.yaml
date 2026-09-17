@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-wordpress.fullname" . }}
+  labels:
+    {{- include "irl-wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+spec:
+  replicas: 1
+  # RWO claim: the old pod must release /var/www/html before the new one
+  # gets it, so no rolling updates.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-wordpress.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: wordpress
+  template:
+    metadata:
+      labels:
+        {{- include "irl-wordpress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: wordpress
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # WordPress does not retry a dead database -- it renders "Error
+        # establishing a database connection" and caches nothing. Wait here
+        # so a cold start of both pods converges on its own.
+        - name: wait-for-db
+          image: {{ .Values.mariadb.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bash", "-c", {{ include "irl-wordpress.waitForDb" . | quote }}]
+          env:
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "mariadb.existingSecret is required" .Values.mariadb.existingSecret }}
+                  key: MARIADB_PASSWORD
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "128Mi"
+      containers:
+        - name: wordpress
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Runs as root by design: the apache parent binds the port and
+          # drops to www-data (uid 33) for workers, and the entrypoint
+          # chowns the freshly unpacked core to that user.
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ include "irl-wordpress.mariadbHost" . }}:3306"
+            - name: WORDPRESS_DB_NAME
+              value: {{ .Values.mariadb.database | quote }}
+            - name: WORDPRESS_DB_USER
+              value: {{ .Values.mariadb.user | quote }}
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.mariadb.existingSecret }}
+                  key: MARIADB_PASSWORD
+            - name: WORDPRESS_TABLE_PREFIX
+              value: {{ .Values.wordpress.tablePrefix | quote }}
+            {{- if .Values.wordpress.debug }}
+            - name: WORDPRESS_DEBUG
+              value: "1"
+            {{- end }}
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                {{- include "irl-wordpress.configExtra" . | nindent 16 }}
+            {{- range $k, $v := .Values.wordpress.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+          # `/` answers 302 -> /wp-admin/install.php before setup and 200
+          # after; httpGet counts both as success.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            {{- toYaml .Values.wordpress.probes.startup | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            {{- toYaml .Values.wordpress.probes.readiness | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            {{- toYaml .Values.wordpress.probes.liveness | nindent 12 }}
+          resources:
+            {{- toYaml .Values.wordpress.resources | nindent 12 }}
+          volumeMounts:
+            # The whole install, not just wp-content -- see values.yaml.
+            - name: html
+              mountPath: /var/www/html
+      volumes:
+        - name: html
+          persistentVolumeClaim:
+            claimName: {{ required "wordpress.existingClaim is required" .Values.wordpress.existingClaim }}

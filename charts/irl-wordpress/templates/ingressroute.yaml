@@ -1,0 +1,22 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "irl-wordpress.fullname" . }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-wordpress.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ .Values.ingress.entryPoint }}
+  routes:
+    - match: Host(`{{ required "ingress.host is required when ingress.enabled" .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        - name: {{ include "irl-wordpress.fullname" . }}
+          port: {{ .Values.service.port }}
+  tls:
+    certResolver: {{ .Values.ingress.certResolver }}
+    domains:
+      - main: {{ .Values.ingress.host }}
+{{- end }}

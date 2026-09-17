@@ -1,0 +1,124 @@
+# irl-wordpress/values.yaml
+# =========================
+# Single-site WordPress = the official `wordpress:*-apache` image + a bundled
+# MariaDB StatefulSet, behind a chart-owned Traefik IngressRoute.
+#
+# Why a bundled database: WordPress core speaks MySQL/MariaDB only, so the
+# cluster's shared CloudNativePG instance is not an option. Same call the
+# irl-wotlk chart made for its MySQL -- one small single-replica DB per app
+# rather than a second shared engine to operate.
+#
+# What lives on which volume:
+#   - wordpress.existingClaim -> /var/www/html. That is the WHOLE install:
+#     core, wp-content (themes/plugins/uploads) AND wp-config.php. The image
+#     only unpacks core when index.php is missing, so the volume wins after
+#     first boot; core version therefore tracks the image tag and core
+#     auto-update is disabled below to keep it that way (a self-updated core
+#     on the volume is never downgraded by a later image, which would silently
+#     pin you to whatever wp-admin installed).
+#   - mariadb.existingClaim -> /var/lib/mysql.
+# Both are IRL-managed static ZFS-backed claims (existingClaim), like every
+# other irl-* chart; this chart never provisions storage.
+#
+# Auth keys/salts: the image's entrypoint bakes eight random salts into
+# wp-config.php on first boot and that file is on the PV, so they survive
+# `helm upgrade` untouched. Deliberately NOT chart-generated values (the
+# randAlphaNum re-roll trap documented in the karakeep values) and not in a
+# Secret -- nothing outside the pod needs them.
+#
+# Reverse proxy: the official wp-config-docker.php already promotes
+# X-Forwarded-Proto: https to $_SERVER['HTTPS'], so Traefik's TLS termination
+# is handled. wordpress.siteUrl additionally pins WP_HOME/WP_SITEURL so
+# WordPress cannot emit http:// links or redirect-loop.
+
+image:
+  repository: wordpress
+  # Tag carries both the WordPress and the PHP version; renovate bumps it.
+  tag: "7.1.0-php8.4-apache"
+  pullPolicy: IfNotPresent
+
+wordpress:
+  # REQUIRED. Full external URL, no trailing slash (e.g. https://blog.example.com).
+  # Rendered into WP_HOME/WP_SITEURL via WORDPRESS_CONFIG_EXTRA, which the
+  # image eval()s on every request -- unlike the salts it is NOT frozen at
+  # first boot, so changing it here and upgrading is enough.
+  siteUrl: ""
+  tablePrefix: "wp_"
+  # WP_DEBUG. Leave off outside of debugging: WordPress prints notices to the
+  # page, not to the log.
+  debug: false
+  # Blocks the wp-admin theme/plugin file editor (an RCE primitive behind any
+  # compromised admin session). Plugin/theme INSTALLS are still allowed.
+  disallowFileEdit: true
+  # See the volume note above: leave false so the image tag is the source of
+  # truth for core. Set "minor" only if you also stop pinning the tag.
+  autoUpdateCore: false
+  # Raw PHP appended to the generated config, eval'd per request.
+  configExtra: ""
+  # Extra env for the wordpress container (WORDPRESS_* or anything else).
+  extraEnv: {}
+  existingClaim: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+  # First boot unpacks ~60MB of core onto the volume before Apache serves
+  # anything; the startup budget covers that plus the DB wait.
+  probes:
+    startup:
+      periodSeconds: 5
+      failureThreshold: 60
+    readiness:
+      periodSeconds: 10
+      failureThreshold: 3
+    liveness:
+      periodSeconds: 30
+      failureThreshold: 5
+
+mariadb:
+  image: "mariadb:11.8.9"
+  database: wordpress
+  user: wordpress
+  # REQUIRED. Secret carrying MARIADB_ROOT_PASSWORD and MARIADB_PASSWORD;
+  # the latter is what the wordpress container gets as WORDPRESS_DB_PASSWORD.
+  existingSecret: ""
+  existingClaim: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+  probes:
+    startup:
+      periodSeconds: 10
+      failureThreshold: 60
+    readiness:
+      periodSeconds: 10
+    liveness:
+      periodSeconds: 30
+      failureThreshold: 5
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Traefik IngressRoute. Charts that own their routing define it here rather
+# than in the cluster's standalone-IngressRoute list.
+ingress:
+  enabled: true
+  host: ""
+  entryPoint: websecure
+  certResolver: letsencrypt
+
+# The apache image starts as root and drops to www-data (uid 33); MariaDB
+# drops to uid 999. hostPath-backed PVs ignore fsGroup, so both directories
+# are chowned by the operator, not here.
+podSecurityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
