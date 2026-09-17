@@ -102,6 +102,42 @@ mariadb:
       periodSeconds: 30
       failureThreshold: 5
 
+
+# ── Nightly off-site backup ───────────────────────────────────────────
+# ZFS snapshots of the volumes (if the operator takes them) live on the same
+# pool as the data; this is the copy that survives losing the pool. Two
+# objects per run: a mariadb-dump of the database and a tar of wp-content.
+# wp-content is streamed straight into S3 rather than staged, because the
+# staging emptyDir lives on the node root filesystem, not the data pool.
+#
+# Restoring is the inverse and is written out in the operator's runbook --
+# an untested backup is a rumour, so run one restore before trusting this.
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  timeZone: ""
+  retentionDays: 30
+  # Only the (small, gzipped) SQL dump lands here.
+  stagingSizeLimit: "2Gi"
+  uploader:
+    image:
+      repository: amazon/aws-cli
+      tag: "2.36.38"
+  s3:
+    # An in-cluster plain-HTTP endpoint is the right default for a self-hosted
+    # S3: a self-signed public endpoint makes aws-cli fail with
+    # SSL: CERTIFICATE_VERIFY_FAILED.
+    endpoint: ""
+    bucket: ""
+    # Secret with AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (mounted via envFrom).
+    existingSecret: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
 service:
   type: ClusterIP
   port: 80

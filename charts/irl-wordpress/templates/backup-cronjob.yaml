@@ -1,0 +1,141 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "irl-wordpress.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  {{- with .Values.backup.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "irl-wordpress.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          # The content claim is RWO and node-local; the job has to land on
+          # the same node as the app pod that already holds it.
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          initContainers:
+            # mariadb-dump into a small emptyDir. --single-transaction keeps
+            # InnoDB consistent without locking the site; the site stays up.
+            - name: db-dump
+              image: {{ .Values.mariadb.image | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - bash
+                - -c
+                - |
+                  set -euo pipefail
+                  mariadb-dump \
+                    -h {{ include "irl-wordpress.mariadbHost" . }} \
+                    -uroot -p"$MARIADB_ROOT_PASSWORD" \
+                    --single-transaction --quick --routines --events \
+                    --default-character-set=utf8mb4 \
+                    {{ .Values.mariadb.database }} \
+                    | gzip -c > /staging/db.sql.gz
+                  echo "dump complete: $(stat -c%s /staging/db.sql.gz) bytes"
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.mariadb.existingSecret }}
+                      key: MARIADB_ROOT_PASSWORD
+              volumeMounts:
+                - name: staging
+                  mountPath: /staging
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          containers:
+            - name: uploader
+              image: "{{ .Values.backup.uploader.image.repository }}:{{ .Values.backup.uploader.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  STAMP=$(date -u +%Y%m%d-%H%M%S)
+
+                  echo "Uploading database dump..."
+                  aws --endpoint-url="${S3_ENDPOINT}" s3 cp \
+                    /staging/db.sql.gz "s3://${S3_BUCKET}/wordpress-db-${STAMP}.sql.gz" --no-progress
+
+                  # wp-content is streamed straight to S3: it can be gigabytes
+                  # and there is no staging volume big enough for it (emptyDir
+                  # here lives on the node root filesystem, not the ZFS pool).
+                  echo "Uploading wp-content..."
+                  set -o pipefail
+                  tar czf - -C /var/www/html --exclude='wp-content/cache' wp-content \
+                    | aws --endpoint-url="${S3_ENDPOINT}" s3 cp \
+                        - "s3://${S3_BUCKET}/wordpress-content-${STAMP}.tar.gz" --no-progress
+                  set +o pipefail
+
+                  echo "Pruning objects older than ${RETENTION_DAYS} days..."
+                  CUTOFF=$(date -u -d "-${RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                    || date -u -v-${RETENTION_DAYS}d +%Y-%m-%dT%H:%M:%SZ)
+                  aws --endpoint-url="${S3_ENDPOINT}" s3api list-objects-v2 \
+                    --bucket "${S3_BUCKET}" \
+                    --query "Contents[?LastModified<'${CUTOFF}'].Key" \
+                    --output text 2>/dev/null | tr '\t' '\n' | while IFS= read -r key; do
+                      if [ -n "${key}" ] && [ "${key}" != "None" ]; then
+                        echo "  deleting: ${key}"
+                        aws --endpoint-url="${S3_ENDPOINT}" s3 rm "s3://${S3_BUCKET}/${key}"
+                      fi
+                  done
+                  echo "Backup complete."
+              env:
+                - name: S3_ENDPOINT
+                  value: {{ required "backup.s3.endpoint is required when backup.enabled" .Values.backup.s3.endpoint | quote }}
+                - name: S3_BUCKET
+                  value: {{ required "backup.s3.bucket is required when backup.enabled" .Values.backup.s3.bucket | quote }}
+                - name: RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+                - name: AWS_EC2_METADATA_DISABLED
+                  value: "true"
+                # aws-cli >= 2.23 sends CRC64NVME integrity checksums by default;
+                # Garage rejects them ("invalid checksum algorithm"). Only
+                # checksum where the S3 API actually requires it.
+                - name: AWS_REQUEST_CHECKSUM_CALCULATION
+                  value: "when_required"
+                - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+                  value: "when_required"
+              envFrom:
+                - secretRef:
+                    name: {{ required "backup.s3.existingSecret is required when backup.enabled" .Values.backup.s3.existingSecret }}
+              volumeMounts:
+                - name: staging
+                  mountPath: /staging
+                - name: html
+                  mountPath: /var/www/html
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          volumes:
+            - name: staging
+              emptyDir:
+                sizeLimit: {{ .Values.backup.stagingSizeLimit | quote }}
+            - name: html
+              persistentVolumeClaim:
+                claimName: {{ .Values.wordpress.existingClaim }}
+                readOnly: true
+{{- end }}

@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-wordpress
 description: Single-site WordPress (official apache image) with a bundled MariaDB, chart-owned Traefik IngressRoute and externally-managed persistent claims
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "7.1.0"
 keywords:
   - wordpress
