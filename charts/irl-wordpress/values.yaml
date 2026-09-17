@@ -105,10 +105,17 @@ mariadb:
 
 # ── Nightly off-site backup ───────────────────────────────────────────
 # ZFS snapshots of the volumes (if the operator takes them) live on the same
-# pool as the data; this is the copy that survives losing the pool. Two
-# objects per run: a mariadb-dump of the database and a tar of wp-content.
-# wp-content is streamed straight into S3 rather than staged, because the
-# staging emptyDir lives on the node root filesystem, not the data pool.
+# pool as the data; this is the copy that survives losing the pool.
+#
+# Two shapes, deliberately different:
+#   db/wordpress-db-<stamp>.sql.gz  -- point-in-time mariadb-dump, pruned
+#                                      after retentionDays
+#   wp-content/...                  -- incremental mirror (aws s3 sync, no
+#                                      --delete), never pruned
+# wp-content is mirrored rather than tarred because the aws-cli image has no
+# tar and a sync needs no staging volume -- the staging emptyDir lives on the
+# node root filesystem, not the data pool, so only the small gzipped SQL dump
+# is ever staged.
 #
 # Restoring is the inverse and is written out in the operator's runbook --
 # an untested backup is a rumour, so run one restore before trusting this.

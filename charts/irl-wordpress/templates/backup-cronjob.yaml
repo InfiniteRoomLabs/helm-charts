@@ -78,23 +78,27 @@ spec:
 
                   echo "Uploading database dump..."
                   aws --endpoint-url="${S3_ENDPOINT}" s3 cp \
-                    /staging/db.sql.gz "s3://${S3_BUCKET}/wordpress-db-${STAMP}.sql.gz" --no-progress
+                    /staging/db.sql.gz "s3://${S3_BUCKET}/db/wordpress-db-${STAMP}.sql.gz" --no-progress
 
-                  # wp-content is streamed straight to S3: it can be gigabytes
-                  # and there is no staging volume big enough for it (emptyDir
-                  # here lives on the node root filesystem, not the ZFS pool).
-                  echo "Uploading wp-content..."
-                  set -o pipefail
-                  tar czf - -C /var/www/html --exclude='wp-content/cache' wp-content \
-                    | aws --endpoint-url="${S3_ENDPOINT}" s3 cp \
-                        - "s3://${S3_BUCKET}/wordpress-content-${STAMP}.tar.gz" --no-progress
-                  set +o pipefail
+                  # wp-content is MIRRORED, not tarred: the aws-cli image has no
+                  # tar, and a sync is incremental (only changed files move) and
+                  # needs no staging volume -- wp-content can be gigabytes and
+                  # the staging emptyDir lives on the node root filesystem, not
+                  # the data pool. Deliberately no --delete: this bucket is the
+                  # copy that survives losing the pool, so it keeps files the
+                  # live site has dropped. The bucket quota is the guard rail.
+                  echo "Mirroring wp-content..."
+                  aws --endpoint-url="${S3_ENDPOINT}" s3 sync \
+                    /var/www/html/wp-content "s3://${S3_BUCKET}/wp-content/" \
+                    --exclude 'cache/*' --exclude '*/cache/*' --no-progress
 
-                  echo "Pruning objects older than ${RETENTION_DAYS} days..."
+                  # Prune only the timestamped dumps under db/. The wp-content/
+                  # mirror is not time-series data and must never be pruned.
+                  echo "Pruning dumps older than ${RETENTION_DAYS} days..."
                   CUTOFF=$(date -u -d "-${RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
                     || date -u -v-${RETENTION_DAYS}d +%Y-%m-%dT%H:%M:%SZ)
                   aws --endpoint-url="${S3_ENDPOINT}" s3api list-objects-v2 \
-                    --bucket "${S3_BUCKET}" \
+                    --bucket "${S3_BUCKET}" --prefix "db/" \
                     --query "Contents[?LastModified<'${CUTOFF}'].Key" \
                     --output text 2>/dev/null | tr '\t' '\n' | while IFS= read -r key; do
                       if [ -n "${key}" ] && [ "${key}" != "None" ]; then
