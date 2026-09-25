@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  # ClusterIP only. There is no NodePort and no LoadBalancer: the single way in
+  # is the chart's IngressRoute through Traefik, which is where the IP
+  # allowlist and TLS live.
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "irl-openmessage.selectorLabels" . | nindent 4 }}

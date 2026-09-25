@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `irl-openmessage` v0.1.0: New chart for OpenMessage (Google Messages SMS/RCS sync exposed as an MCP server), built from the `Deathnerd/openmessage` fork that adds remote serving, `/healthz` and container packaging. Runs as ONE pod for a whole household -- `replicas: 1` and `strategy: Recreate` are load-bearing, not cosmetic: the Google pairing is a single logical device backed by one `session.json`, and two daemons on it can get the pairing revoked. Four values are required with no defaults (`image.digest`, `ingress.host`, `persistence.existingClaim`, `secret.existingSecret`) plus `ingress.allowList.sourceRange` when the allowlist is on, so the chart fails to render rather than deploy something half-configured or publicly routed; the image is digest-only, with no tag path at all. Auth is a bearer token read from a mounted file (`OPENMESSAGES_CONTROL_TOKEN_FILE`), so the value never shows up in the pod environment, and the route carries a Traefik `ipAllowList` middleware plus `responseForwarding.flushInterval: -1` for the long-lived MCP streams. Probes set an explicit `Host` header: kubelet dials the pod IP, which is never in `OPENMESSAGES_ALLOWED_HOSTS`, so a default probe would 403 forever if the daemon's DNS-rebinding check covers `/healthz`. NetworkPolicies ship with the chart and the README is explicit that they are additive -- in a namespace with blanket allows they document intent rather than enforce it.
+
 ## [0.14.0] - 2026-09-06
 
 ### Added
