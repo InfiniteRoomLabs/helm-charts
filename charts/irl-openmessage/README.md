@@ -63,8 +63,13 @@ They are therefore defence-in-depth and documentation there, real enforcement in
 ## CI (`ct install` on kind)
 
 `ci/ci-values.yaml` sets `ci.ephemeral: true`: the data volume becomes an
-`emptyDir`, the chart generates a random control token Secret, and the
-IngressRoute is off (kind has no Traefik CRDs). The pod boots unpaired and
+`emptyDir`, the chart generates a random control token Secret, the
+IngressRoute is off (kind has no Traefik CRDs), and `app.dataDir` is
+`/data/store`. The daemon chmods its data dir to `0700` at startup, which
+only the owner may do; kind's emptyDir root is owned by root, and a
+subdirectory the daemon creates is its own. A production data volume must
+likewise be owned by uid 1000, or the pod exits with
+`secure data dir: chmod /data: operation not permitted`. The pod boots unpaired and
 passes its `/healthz` probes, which is what CI proves. Never set
 `ci.ephemeral` in a real deployment: data would not survive a restart and no
 client would know the token.

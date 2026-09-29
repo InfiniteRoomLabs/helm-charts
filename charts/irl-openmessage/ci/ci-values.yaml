@@ -14,6 +14,11 @@ ci:
 app:
   allowedHosts:
     - openmessage.ci.invalid
+  # The daemon chmods its data dir to 0700 at startup, which only the owner
+  # may do. kind's emptyDir root is owned by root, so point the daemon at a
+  # subdirectory it creates (and owns) itself. In production the ZFS dataset
+  # is chowned to 1000 (infra zfs.yml), so /data works as-is.
+  dataDir: /data/store
 
 ingress:
   enabled: false
