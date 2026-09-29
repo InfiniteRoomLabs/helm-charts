@@ -9,9 +9,6 @@ gitea:
 
   replicaCount: 1
 
-  admin:
-    existingSecret: gitea-admin
-
   service:
     http:
       type: NodePort
@@ -23,6 +20,14 @@ gitea:
       nodePort: 30022
 
   gitea:
+    # Admin account. Must sit at gitea.gitea.admin: the upstream chart reads
+    # .Values.gitea.admin and this chart nests upstream under `gitea:`.
+    # The Secret needs `username` and `password` keys; keepUpdated re-applies
+    # its password on every pod start, so the Secret is the source of truth.
+    admin:
+      existingSecret: gitea-admin
+      passwordMode: keepUpdated
+
     config:
       server:
         DOMAIN: "git.lab.infiniteroomlabs.cloud"
