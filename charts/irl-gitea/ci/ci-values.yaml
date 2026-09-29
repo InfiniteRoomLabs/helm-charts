@@ -1,0 +1,29 @@
+# Values for `ct install` on the throwaway kind cluster in CI only.
+# The chart defaults target the homelab (CNPG Postgres, Valkey, a pre-made
+# gitea-admin Secret, Traefik CRDs, local-path storage), none of which exist
+# in kind. Swap them for self-contained equivalents so CI still proves the
+# chart installs, boots and answers HTTP (helm test).
+
+gitea:
+  persistence:
+    storageClass: ""  # kind's default StorageClass
+
+  gitea:
+    admin:
+      existingSecret: ""
+      username: ci_admin
+      password: ci-only-Passw0rd!  # throwaway kind cluster, not a real credential
+      email: ci@example.com
+
+    config:
+      database:
+        DB_TYPE: sqlite3
+      cache:
+        ADAPTER: memory
+      session:
+        PROVIDER: memory
+      queue:
+        TYPE: level
+
+ingress:
+  enabled: false
