@@ -12,3 +12,5 @@ chart-repos:
   - guerzon=https://guerzon.github.io/vaultwarden
   - open-telemetry=https://open-telemetry.github.io/opentelemetry-helm-charts
 helm-extra-args: --timeout 120s
+# Maintainers are the org name, not GitHub usernames.
+validate-maintainers: false
