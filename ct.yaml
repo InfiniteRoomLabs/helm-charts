@@ -1,4 +1,14 @@
 target-branch: main
 chart-dirs:
   - charts
+# Dependency repos for `ct lint` -- keep in sync with the
+# "Add dependency repos" step in .github/workflows/release.yml.
+chart-repos:
+  - cnpg=https://cloudnative-pg.github.io/charts
+  - valkey=https://valkey-io.github.io/valkey-helm/
+  - gitea-charts=https://dl.gitea.com/charts/
+  - prometheus-community=https://prometheus-community.github.io/helm-charts
+  - grafana=https://grafana.github.io/helm-charts
+  - guerzon=https://guerzon.github.io/vaultwarden
+  - open-telemetry=https://open-telemetry.github.io/opentelemetry-helm-charts
 helm-extra-args: --timeout 120s
