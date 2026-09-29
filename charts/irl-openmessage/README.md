@@ -57,8 +57,17 @@ They are therefore defence-in-depth and documentation there, real enforcement in
 | `image.digest` | Digest-only pinning; a mutable tag is not acceptable for the pod holding the Google pairing |
 | `ingress.host` | Operator-specific; also becomes `OPENMESSAGES_ALLOWED_HOSTS` |
 | `ingress.allowList.sourceRange` | Empty would silently publish the route to everything that can reach Traefik |
-| `persistence.existingClaim` | This chart never provisions storage |
-| `secret.existingSecret` | This chart never creates a Secret and never takes a token value |
+| `persistence.existingClaim` | This chart never provisions storage (outside `ci.ephemeral`) |
+| `secret.existingSecret` | This chart never takes a token value; outside `ci.ephemeral` it never creates a Secret |
+
+## CI (`ct install` on kind)
+
+`ci/ci-values.yaml` sets `ci.ephemeral: true`: the data volume becomes an
+`emptyDir`, the chart generates a random control token Secret, and the
+IngressRoute is off (kind has no Traefik CRDs). The pod boots unpaired and
+passes its `/healthz` probes, which is what CI proves. Never set
+`ci.ephemeral` in a real deployment: data would not survive a restart and no
+client would know the token.
 
 ## Other values that matter
 

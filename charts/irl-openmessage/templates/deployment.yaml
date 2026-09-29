@@ -134,11 +134,19 @@ spec:
             {{- end }}
       volumes:
         - name: data
+          {{- if .Values.ci.ephemeral }}
+          emptyDir: {}
+          {{- else }}
           persistentVolumeClaim:
             claimName: {{ required "persistence.existingClaim is required -- this chart never provisions storage; create the PVC with the Ansible PV + spec.volumeName pattern" .Values.persistence.existingClaim }}
+          {{- end }}
         - name: control-token
           secret:
+            {{- if .Values.ci.ephemeral }}
+            secretName: {{ include "irl-openmessage.fullname" . }}-ci-token
+            {{- else }}
             secretName: {{ required "secret.existingSecret is required -- the control token comes from the Bitwarden/bw-sync lane, never from values" .Values.secret.existingSecret }}
+            {{- end }}
             # 256 decimal == 0400 octal (owner read only). Written in decimal
             # on purpose: a leading-zero literal is a YAML 1.1 octal and reads
             # as a bug to everyone who is not sure which version applies.

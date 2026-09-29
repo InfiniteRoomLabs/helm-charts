@@ -72,6 +72,15 @@ secret:
   key: token
   mountPath: /run/secrets/openmessage
 
+# -------- CI only --------
+# ct install on a throwaway kind cluster has none of the homelab pieces: no
+# ZFS claim, no bw-synced Secret, no Traefik CRDs. ci.ephemeral swaps the data
+# volume for an emptyDir and has the chart generate a random control token so
+# the pod can boot and pass its probes. Never set this in a real deployment:
+# data would not survive a restart and the token would be unknown to clients.
+ci:
+  ephemeral: false
+
 # -------- storage --------
 # IRL-managed static ZFS-backed claim, like every other irl-* chart; this
 # chart never provisions storage. Losing this volume means re-pairing with the
