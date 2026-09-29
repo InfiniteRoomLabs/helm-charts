@@ -1,0 +1,105 @@
+{{- if .Values.networkPolicy.enabled }}
+# ============================================================================
+# Chart-owned NetworkPolicies for the OpenMessage pod.
+#
+# NETWORKPOLICY IS ADDITIVE -- read this before trusting these rules.
+# Kubernetes NetworkPolicy has no deny primitive: the effective permission for
+# a pod is the UNION of every policy that selects it. In a namespace that
+# already carries blanket allows (the IRL `irl` namespace has
+# `allow-intra-namespace`, `allow-ingress-tailscale` and
+# `allow-egress-internet`, all with `podSelector: {}`), the rules below cannot
+# take anything away. They document intent, they are the real enforcement in a
+# namespace WITHOUT those blanket policies, and they are what survives if the
+# blanket policies are ever tightened. They are NOT the reason this workload
+# is only reachable from the tailnet/LAN -- the Traefik ipAllowList middleware
+# and the tailnet-only DNS name are.
+#
+# IPv6 NOTE: an IPv4 ipBlock (0.0.0.0/0) cannot carry IPv6 excepts. If pods
+# ever get IPv6 addresses, add a separate policy with an ::/0 ipBlock.
+# ============================================================================
+---
+# (a) ingress: only the listener port, only from the configured sources.
+# Default source is the pod CIDR, which is the address a hostNetwork Traefik
+# uses when it dials a pod through cni0 (and also covers the kubelet's probe
+# path on this single-node cluster).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}-allow-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-openmessage.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.app.port }}
+---
+# (b) egress: DNS to CoreDNS in kube-system. namespaceSelector and podSelector
+# sit in ONE `to` element so they are ANDed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-openmessage.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.networkPolicy.egressInternet.enabled }}
+---
+# (c) egress: 443/tcp to PUBLIC addresses only -- Google Messages. RFC1918,
+# CGNAT and link-local stay denied, so a compromised pod cannot pivot onto the
+# LAN, the tailnet or the cluster subnets.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}-allow-egress-internet
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-openmessage.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
+{{- end }}

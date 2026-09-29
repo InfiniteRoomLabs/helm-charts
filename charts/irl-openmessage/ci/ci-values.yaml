@@ -1,0 +1,24 @@
+# Values for `ct install` on the throwaway kind cluster in CI only.
+# The chart defaults target the homelab (ZFS claim, bw-synced token Secret,
+# Traefik IngressRoute CRDs), none of which exist in kind. ci.ephemeral swaps
+# in an emptyDir and a generated token so CI still proves the chart installs,
+# boots unpaired and passes its /healthz probes.
+
+image:
+  # v0.2.9-remote.1 (multi-arch index)
+  digest: "sha256:831a593e59e43dc8b984d203caf99dba6a7c4c8e343f6025c2842779113b5fdd"
+
+ci:
+  ephemeral: true
+
+app:
+  allowedHosts:
+    - openmessage.ci.invalid
+  # The daemon chmods its data dir to 0700 at startup, which only the owner
+  # may do. kind's emptyDir root is owned by root, so point the daemon at a
+  # subdirectory it creates (and owns) itself. In production the ZFS dataset
+  # is chowned to 1000 (infra zfs.yml), so /data works as-is.
+  dataDir: /data/store
+
+ingress:
+  enabled: false

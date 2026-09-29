@@ -1,0 +1,22 @@
+apiVersion: v2
+name: irl-openmessage
+description: OpenMessage (Google Messages SMS/RCS sync) as a single-pod MCP server behind a chart-owned Traefik IngressRoute with an IP-allowlist middleware and a bearer-token file
+type: application
+version: 0.1.0
+# The image is built from the Deathnerd/openmessage FORK (remote mode,
+# /healthz, container packaging), not from upstream. This string tracks the
+# fork's release label only -- image.digest in values.yaml is the sole
+# authoritative pin and the chart refuses to render without it.
+appVersion: "0.2.9-fork"
+keywords:
+  - openmessage
+  - mcp
+  - sms
+  - rcs
+  - google-messages
+  - self-hosted
+maintainers:
+  - name: Infinite Room Labs
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/Deathnerd/openmessage

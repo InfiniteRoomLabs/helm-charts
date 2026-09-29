@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  # THE ONE-POD RULE. One Google pairing = one daemon. A second replica fights
+  # the first over session.json and Google can revoke the pairing, which costs
+  # a re-pair from the phone. Never scale this up, and never set an HPA on it.
+  replicas: 1
+  # Recreate, never RollingUpdate: a rolling update deliberately runs old and
+  # new pods at once, which is exactly the two-daemon state above -- and the
+  # RWO claim would deadlock the rollout anyway.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "irl-openmessage.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "irl-openmessage.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "irl-openmessage.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      # A Google RPC can hang for a few seconds on SIGTERM; let it finish
+      # rather than SIGKILL SQLite mid-write.
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: openmessage
+          image: {{ include "irl-openmessage.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # ENTRYPOINT is the openmessage binary.
+          args:
+            {{- toYaml .Values.app.args | nindent 12 }}
+          env:
+            - name: OPENMESSAGES_HOST
+              value: {{ .Values.app.host | quote }}
+            - name: OPENMESSAGES_PORT
+              value: {{ .Values.app.port | quote }}
+            - name: OPENMESSAGES_DATA_DIR
+              value: {{ .Values.app.dataDir | quote }}
+            # DNS-rebinding defence: anything else in the Host header is 403,
+            # so the route must preserve the original Host.
+            - name: OPENMESSAGES_ALLOWED_HOSTS
+              value: {{ include "irl-openmessage.allowedHosts" . | quote }}
+            # Bearer token read from a file, not the environment.
+            - name: OPENMESSAGES_CONTROL_TOKEN_FILE
+              value: {{ include "irl-openmessage.tokenFile" . | quote }}
+            {{- range $k, $v := .Values.app.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          # /healthz is unauthenticated and process-level: 200 means the
+          # listener is up, NOT that the Google pairing is healthy.
+          #
+          # The Host header override is load-bearing: kubelet dials the POD IP,
+          # so its default Host is "<podIP>:<port>" -- never a member of
+          # OPENMESSAGES_ALLOWED_HOSTS. If the daemon's Host check covers
+          # /healthz, unpatched probes 403 forever and the pod never goes ready.
+          {{- $probeHeaders := "" }}
+          {{- if .Values.probes.setHostHeader }}
+          {{- $probeHeaders = printf "httpHeaders:\n  - name: Host\n    value: %s" (include "irl-openmessage.primaryHost" .) }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              {{- with $probeHeaders }}
+              {{- . | nindent 14 }}
+              {{- end }}
+            {{- toYaml .Values.probes.startup | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              {{- with $probeHeaders }}
+              {{- . | nindent 14 }}
+              {{- end }}
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              {{- with $probeHeaders }}
+              {{- . | nindent 14 }}
+              {{- end }}
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: control-token
+              mountPath: {{ .Values.secret.mountPath }}
+              readOnly: true
+            {{- range .Values.writableEmptyDirs }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.ci.ephemeral }}
+          emptyDir: {}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ required "persistence.existingClaim is required -- this chart never provisions storage; create the PVC with the Ansible PV + spec.volumeName pattern" .Values.persistence.existingClaim }}
+          {{- end }}
+        - name: control-token
+          secret:
+            {{- if .Values.ci.ephemeral }}
+            secretName: {{ include "irl-openmessage.fullname" . }}-ci-token
+            {{- else }}
+            secretName: {{ required "secret.existingSecret is required -- the control token comes from the Bitwarden/bw-sync lane, never from values" .Values.secret.existingSecret }}
+            {{- end }}
+            # 256 decimal == 0400 octal (owner read only). Written in decimal
+            # on purpose: a leading-zero literal is a YAML 1.1 octal and reads
+            # as a bug to everyone who is not sure which version applies.
+            defaultMode: 256
+            items:
+              - key: {{ .Values.secret.key }}
+                path: {{ .Values.secret.key }}
+        {{- range .Values.writableEmptyDirs }}
+        - name: {{ .name }}
+          emptyDir: {}
+        {{- end }}

@@ -1,0 +1,23 @@
+{{ .Chart.Name }} {{ .Chart.Version }} deployed as release "{{ .Release.Name }}".
+
+  MCP endpoint:  https://{{ .Values.ingress.host }}/mcp
+  Legacy SSE:    https://{{ .Values.ingress.host }}/mcp/sse
+  Health:        https://{{ .Values.ingress.host }}/healthz   (unauthenticated)
+  Data volume:   {{ .Values.persistence.existingClaim }} -> {{ .Values.persistence.mountPath }}
+  Token file:    {{ include "irl-openmessage.tokenFile" . }} (from Secret {{ .Values.secret.existingSecret }})
+
+ONE POD, EVER. Two daemons on one Google pairing fight over session.json and
+can get the pairing revoked. replicas stays 1 and strategy stays Recreate.
+
+Smoke test from an allowed source range:
+
+  curl -sS -o /dev/null -w '%{http_code}\n' https://{{ .Values.ingress.host }}/healthz   # 200
+  curl -sS -o /dev/null -w '%{http_code}\n' https://{{ .Values.ingress.host }}/mcp       # 401 (no token)
+
+Meaning of the failures you will actually hit:
+  401 -> bearer token missing or wrong (check the Secret, then the mount)
+  403 -> either the Traefik ipAllowList (your source IP) or the daemon's
+         OPENMESSAGES_ALLOWED_HOSTS (the Host header) rejected the request
+
+Watch the first sync (pairing state only shows up in the logs, not /healthz):
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "irl-openmessage.fullname" . }}

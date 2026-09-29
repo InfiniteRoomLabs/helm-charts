@@ -1,0 +1,217 @@
+# irl-openmessage/values.yaml
+# ===========================
+# OpenMessage (https://github.com/Deathnerd/openmessage) -- a Go daemon that
+# pairs with Google Messages for Web and re-exposes the conversation as an MCP
+# server. Run here as ONE pod for the whole household: every agent (Claude
+# Code, Claude Desktop, laptop and desktop alike) talks to this one daemon
+# instead of each machine running its own.
+#
+# THE ONE-POD RULE (read before changing replicas/strategy)
+# --------------------------------------------------------
+# The pairing with Google is a single logical device backed by one
+# session.json. Two daemons on one pairing fight over the session and Google
+# can revoke it outright, which costs a re-pair from the phone. Hence
+# `replicas: 1`, `strategy: Recreate`, no HPA, and an RWO claim. There is
+# deliberately no PodDisruptionBudget: a PDB protects availability during
+# voluntary disruption, and for this workload "briefly down" is correct and
+# "briefly doubled" is the failure mode.
+#
+# Three things must be supplied by the operator -- the chart refuses to render
+# without them, by design:
+#   image.digest, ingress.host, persistence.existingClaim, secret.existingSecret
+#
+# Hostnames, CIDRs and claim names are deliberately NOT defaulted here: this
+# chart repo is public, environment values live in the infra repo
+# (ansible/helm/openmessage/values.yaml).
+
+# -------- image (ghcr.io/deathnerd/openmessage, pinned BY DIGEST) --------
+# REQUIRED, no default. The image reference renders as "{repository}@{digest}"
+# -- there is intentionally no tag. Built from the Deathnerd/openmessage fork;
+# Chart.yaml's appVersion is a label, this digest is the truth.
+image:
+  repository: ghcr.io/deathnerd/openmessage
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Pull secrets for private registries. Each entry: { name: <k8s docker-registry
+# secret in this namespace> }.
+imagePullSecrets: []
+
+app:
+  # The container ENTRYPOINT is the `openmessage` binary; these args select the
+  # long-running MCP server mode.
+  args:
+    - "serve"
+    - "--mcp-sse"
+  # Listener. 0.0.0.0 is required (not a loopback bind like irl-gunio-mcp):
+  # this pod is reached over the pod network by Traefik, not by a sidecar.
+  host: "0.0.0.0"
+  port: 7007
+  # SQLite `messages.db` (+ -wal/-shm) and `session.json`, the pairing
+  # credential. Lives on the PVC below.
+  dataDir: /data
+  # Host header allowlist -- the daemon's DNS-rebinding defence. Any request
+  # whose Host is not in this list gets 403 REGARDLESS of the bearer token, so
+  # the ingress MUST pass the original Host through (Traefik does; it does not
+  # rewrite Host unless a middleware is asked to).
+  # Empty = fall back to [ ingress.host ], which is what you want.
+  allowedHosts: []
+  # Extra env for the container, e.g. OPENMESSAGES_LOG_LEVEL.
+  extraEnv: {}
+
+# -------- control token (bearer auth on every /mcp* request) --------
+# The daemon reads the token from a FILE, not an env var, so the value never
+# appears in `kubectl describe pod` or a crash dump of the environment.
+# Missing/wrong Authorization header -> 401. /healthz is exempt.
+#
+# existingSecret is REQUIRED: this chart never creates a Secret and never
+# takes a token value. In the IRL homelab it comes from the Bitwarden ->
+# bw-sync lane (item `openmessage-control-token`).
+secret:
+  existingSecret: ""
+  key: token
+  mountPath: /run/secrets/openmessage
+
+# -------- CI only --------
+# ct install on a throwaway kind cluster has none of the homelab pieces: no
+# ZFS claim, no bw-synced Secret, no Traefik CRDs. ci.ephemeral swaps the data
+# volume for an emptyDir and has the chart generate a random control token so
+# the pod can boot and pass its probes. Never set this in a real deployment:
+# data would not survive a restart and the token would be unknown to clients.
+ci:
+  ephemeral: false
+
+# -------- storage --------
+# IRL-managed static ZFS-backed claim, like every other irl-* chart; this
+# chart never provisions storage. Losing this volume means re-pairing with the
+# phone and re-syncing history.
+persistence:
+  existingClaim: ""
+  mountPath: /data
+
+# readOnlyRootFilesystem is true, so anything written outside /data needs a
+# writable emptyDir.
+writableEmptyDirs:
+  - name: tmp
+    mountPath: /tmp
+
+# -------- routing (chart-owned Traefik IngressRoute + middleware) --------
+ingress:
+  enabled: true
+  # REQUIRED when enabled. Also becomes OPENMESSAGES_ALLOWED_HOSTS unless
+  # app.allowedHosts overrides it -- keep the two in step or every request 403s.
+  host: ""
+  entryPoint: websecure
+  certResolver: letsencrypt
+  # Traefik ipAllowList middleware. Traefik here terminates on hostNetwork, so
+  # it sees the real client address and this is a real filter rather than a
+  # decoration -- see the chart README.
+  allowList:
+    enabled: true
+    # REQUIRED when allowList.enabled (render fails on an empty list rather
+    # than silently publishing the route to everything that can reach Traefik).
+    sourceRange: []
+  # MCP responses are long-lived streams (`/mcp` streamable HTTP and the legacy
+  # `/mcp/sse`). A negative flush interval makes Traefik forward each write
+  # immediately instead of coalescing for up to its 100ms default, which is
+  # what keeps SSE feeling live.
+  flushInterval: "-1"
+
+service:
+  type: ClusterIP
+  port: 7007
+
+# -------- probes --------
+# /healthz is unauthenticated and returns 200 whenever the process is up; it
+# says nothing about Google pairing state (check logs for that).
+probes:
+  # Send an explicit `Host:` header on every probe, set to the first allowed
+  # host. kubelet dials the POD IP, so its default Host is "<podIP>:<port>",
+  # which is never in OPENMESSAGES_ALLOWED_HOSTS -- if the daemon's
+  # DNS-rebinding check covers /healthz, unpatched probes 403 forever and the
+  # pod never becomes ready. Harmless if the check does not cover /healthz.
+  setHostHeader: true
+  startup:
+    # 60 x 5s = 5 minutes. The first sync after a cold start (or after a
+    # restore) pulls history and can be slow; a tight startup budget turns
+    # that into a crashloop.
+    periodSeconds: 5
+    failureThreshold: 60
+    timeoutSeconds: 3
+  readiness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# A Google RPC can hang on shutdown; give the process room to exit cleanly so
+# SQLite is not killed mid-write.
+terminationGracePeriodSeconds: 30
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    # Deep backfill is bursty -- a low CPU limit turns it into hours of
+    # throttling.
+    cpu: "1"
+    memory: "1Gi"
+
+# -------- hardened security contexts (same shape as irl-gunio-mcp) --------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# -------- network policy --------
+# Chart-owned, and defence-in-depth ONLY where the namespace already carries
+# blanket allow policies -- NetworkPolicy is additive, so these rules can never
+# subtract from a namespace-wide allow. See the README section "NetworkPolicy
+# is additive".
+networkPolicy:
+  enabled: true
+  # Who may reach the listener. Defaults to the pod CIDR, which is the source
+  # address a hostNetwork Traefik uses when it dials a pod through cni0.
+  ingressFrom:
+    - ipBlock:
+        cidr: 10.42.0.0/16
+  # Google Messages lives on the public internet over 443/tcp. Nothing else.
+  egressInternet:
+    enabled: true
+
+# -------- scheduling --------
+# The claim is a node-local hostPath PV, so in practice this needs a
+# nodeSelector in the environment values.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# The app talks only to public Google endpoints; ndots:1 makes those resolve on
+# the first query instead of walking the cluster search path.
+dnsConfig:
+  options:
+    - name: ndots
+      value: "1"
+
+nameOverride: ""
+fullnameOverride: ""

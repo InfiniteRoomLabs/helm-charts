@@ -1,0 +1,64 @@
+{{- if .Values.ingress.enabled }}
+{{- if and .Values.ingress.allowList.enabled (not .Values.ingress.allowList.sourceRange) }}
+{{- fail "ingress.allowList.enabled is true but ingress.allowList.sourceRange is empty -- list the CIDRs allowed to reach this route, or set ingress.allowList.enabled=false deliberately" }}
+{{- end }}
+{{- if .Values.ingress.allowList.enabled }}
+# Traefik ipAllowList: only these source ranges may reach the route at all;
+# everything else gets 403 before the request touches the pod.
+#
+# This is a REAL filter here rather than a decoration because the IRL Traefik
+# runs with hostNetwork: true and a ClusterIP Service, so client connections
+# land on the node's socket without kube-proxy DNAT/SNAT and Traefik's
+# RemoteAddr IS the client address. ipAllowList uses RemoteAddr by default
+# (no ipStrategy = do not trust X-Forwarded-For), which is what we want.
+#
+# If Traefik is ever moved behind a LoadBalancer, a NodePort Service with
+# externalTrafficPolicy: Cluster, or another proxy, RemoteAddr stops being the
+# client and this middleware silently allows everything that can reach
+# Traefik. Re-verify after any change to how Traefik is exposed.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "irl-openmessage.allowListMiddleware" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  ipAllowList:
+    sourceRange:
+      {{- toYaml .Values.ingress.allowList.sourceRange | nindent 6 }}
+---
+{{- end }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "irl-openmessage.fullname" . }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-openmessage.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ .Values.ingress.entryPoint }}
+  routes:
+    # Host-match only, no PathPrefix: the daemon owns /mcp, /mcp/sse and
+    # /healthz and nothing else shares the hostname. Traefik forwards the
+    # original Host, which OPENMESSAGES_ALLOWED_HOSTS requires.
+    - match: Host(`{{ required "ingress.host is required when ingress.enabled" .Values.ingress.host }}`)
+      kind: Rule
+      {{- if .Values.ingress.allowList.enabled }}
+      middlewares:
+        - name: {{ include "irl-openmessage.allowListMiddleware" . }}
+          namespace: {{ .Release.Namespace }}
+      {{- end }}
+      services:
+        - name: {{ include "irl-openmessage.fullname" . }}
+          port: {{ .Values.service.port }}
+          # MCP responses are long-lived streams; flush each write straight
+          # through instead of coalescing for Traefik's default 100ms.
+          responseForwarding:
+            flushInterval: {{ .Values.ingress.flushInterval | quote }}
+  tls:
+    certResolver: {{ .Values.ingress.certResolver }}
+    domains:
+      - main: {{ .Values.ingress.host }}
+{{- end }}
