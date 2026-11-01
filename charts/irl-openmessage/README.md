@@ -86,7 +86,7 @@ client would know the token.
 | `resources.limits` | 1 CPU / 1Gi | Deep backfill is bursty; a low CPU limit turns it into hours of throttling |
 | `networkPolicy.ingressFrom` | pod CIDR `10.42.0.0/16` | The source address a hostNetwork Traefik uses via cni0 |
 
-Security context is the hardened shape shared with `irl-gunio-mcp`: non-root uid/gid 1000, `readOnlyRootFilesystem: true`, `drop: [ALL]`, `RuntimeDefault` seccomp, `fsGroup: 1000` with `OnRootMismatch`, and an `emptyDir` for `/tmp`.
+Security context is the hardened shape the IRL charts share: non-root uid/gid 1000, `readOnlyRootFilesystem: true`, `drop: [ALL]`, `RuntimeDefault` seccomp, `fsGroup: 1000` with `OnRootMismatch`, and an `emptyDir` for `/tmp`.
 
 ## Install
 
