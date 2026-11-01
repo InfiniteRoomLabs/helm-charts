@@ -410,6 +410,30 @@ entries:
   irl-openmessage:
   - apiVersion: v2
     appVersion: 0.2.9-fork
+    created: "2026-11-01T22:07:02.06544499Z"
+    description: OpenMessage (Google Messages SMS/RCS sync) as a single-pod MCP server
+      behind a chart-owned Traefik IngressRoute with an IP-allowlist middleware and
+      a bearer-token file
+    digest: 55123b5817390f60b34d00ac21b1b2fee5742941bc483538f62a0f3712aad1f0
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - openmessage
+    - mcp
+    - sms
+    - rcs
+    - google-messages
+    - self-hosted
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-openmessage
+    sources:
+    - https://github.com/Deathnerd/openmessage
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-openmessage-0.1.1/irl-openmessage-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.2.9-fork
     created: "2026-09-29T19:09:19.946821816Z"
     description: OpenMessage (Google Messages SMS/RCS sync) as a single-pod MCP server
       behind a chart-owned Traefik IngressRoute with an IP-allowlist middleware and
@@ -869,4 +893,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-wotlk-0.1.0/irl-wotlk-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-29T19:09:19.946861496Z"
+generated: "2026-11-01T22:07:02.065529397Z"
