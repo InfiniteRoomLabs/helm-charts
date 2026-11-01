@@ -2,7 +2,7 @@ apiVersion: v2
 name: irl-openmessage
 description: OpenMessage (Google Messages SMS/RCS sync) as a single-pod MCP server behind a chart-owned Traefik IngressRoute with an IP-allowlist middleware and a bearer-token file
 type: application
-version: 0.1.0
+version: 0.1.1
 # The image is built from the Deathnerd/openmessage FORK (remote mode,
 # /healthz, container packaging), not from upstream. This string tracks the
 # fork's release label only -- image.digest in values.yaml is the sole
