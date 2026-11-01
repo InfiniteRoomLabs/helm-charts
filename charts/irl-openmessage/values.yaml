@@ -43,7 +43,7 @@ app:
   args:
     - "serve"
     - "--mcp-sse"
-  # Listener. 0.0.0.0 is required (not a loopback bind like irl-gunio-mcp):
+  # Listener. 0.0.0.0 is required (not a pod-loopback bind):
   # this pod is reached over the pod network by Traefik, not by a sidecar.
   host: "0.0.0.0"
   port: 7007
@@ -161,7 +161,7 @@ resources:
     cpu: "1"
     memory: "1Gi"
 
-# -------- hardened security contexts (same shape as irl-gunio-mcp) --------
+# -------- hardened security contexts (the shape the IRL charts share) --------
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
