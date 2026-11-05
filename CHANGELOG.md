@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `irl-jobops`, `irl-gunio-mcp` and `irl-openviking`: the three charts leave the repo with the services they deployed, decommissioned on 2026-11-01 (infra `docs/plans/2026-11-01-decommission-jobops-market-mcp-openviking.md`). Versions already published through `index.yaml` stay downloadable; nothing new is packaged. The `irl-openmessage` comments that cited `irl-gunio-mcp` as the model for its security context now describe the shared shape without naming it.
+- `irl-wotlk`: the chart leaves the repo with the service it deployed, decommissioned on 2026-11-04 (infra `docs/plans/2026-11-04-decommission-wotlk.md`).
 
 ### Changed
 
