@@ -1,0 +1,94 @@
+{{- if .Values.backup.enabled }}
+{{- if not .Values.backup.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "irl-dolt.backupClaim" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+  annotations:
+    # Backups outlive the release that wrote them.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .Values.backup.persistence.accessMode | quote }}]
+  {{- with .Values.backup.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.persistence.size | quote }}
+---
+{{- end }}
+# The Job does not touch any volume: it connects to the server and calls
+# DOLT_BACKUP, and the SERVER writes to the backup target. That keeps the
+# backup online and means the Job can run on any node.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  {{- with .Values.backup.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "irl-dolt.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: backup
+              image: {{ include "irl-dolt.image" . | quote }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["bash", "/scripts/backup.sh"]
+              env:
+                {{- include "irl-dolt.clientEnv" . | nindent 16 }}
+                - name: BACKUP_URL_TEMPLATE
+                  value: {{ .Values.backup.urlTemplate | quote }}
+              {{- with .Values.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ include "irl-dolt.fullname" . }}-scripts
+            - name: tmp
+              emptyDir: {}
+{{- end }}

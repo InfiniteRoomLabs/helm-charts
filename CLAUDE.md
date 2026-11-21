@@ -13,6 +13,7 @@ charts/
   irl-gitea/       # Gitea wrapper with external PG/Valkey + LFS
   irl-monitoring/  # Umbrella: kube-prometheus-stack + Loki
   irl-platform/    # Umbrella: entire homelab stack
+  irl-dolt/        # One Dolt SQL server instance per release (databases, users, backups, restore)
 ```
 
 ## Chart Conventions

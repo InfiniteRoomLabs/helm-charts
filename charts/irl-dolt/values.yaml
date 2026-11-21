@@ -1,0 +1,274 @@
+# irl-dolt/values.yaml
+# ====================
+# ONE RELEASE = ONE DOLT INSTANCE. Install the chart once per instance, the
+# way you would create one managed database instance per consumer:
+#
+#   helm install orders irl/irl-dolt -f orders.yaml
+#   helm install ledger irl/irl-dolt -f ledger.yaml
+#
+# Each instance is a single `dolt sql-server` pod (StatefulSet, replicas 1)
+# with its own volume, credentials, databases, users, backups and metrics.
+# It speaks the MySQL wire protocol on 3306.
+#
+# What the chart manages, and what it deliberately does not:
+#   - databases[] and users[] are RECONCILED ADDITIVELY by a post-install /
+#     post-upgrade Job. Anything listed is created (or its password and
+#     grants re-applied); anything REMOVED from the list is left alone. The
+#     chart never drops a database, a user or a grant.
+#   - The server config ("parameter group") is the `config` block, rendered
+#     verbatim into the server's config.yaml. Changing it rolls the pod.
+#   - Backups are Dolt's own online, incremental `DOLT_BACKUP('sync-url')`,
+#     run nightly against every database on the server -- including ones
+#     created over SQL rather than declared here.
+#   - No replication / failover. A standby on the same node shares the
+#     primary's failure domain; see the README for the reasoning and for the
+#     official operator, which is where to look once that matters.
+#
+# The server does NOT run through the image's entrypoint script: that script
+# needs root, and everything it does (root password, first database, first
+# user) is done here by the binary's own DOLT_ROOT_* handling plus the
+# provisioning Job. The pod runs as an unprivileged uid with a read-only root
+# filesystem.
+
+image:
+  repository: dolthub/dolt-sql-server
+  # Dolt reads databases written by older versions, but NOT the other way
+  # round: once a newer version writes, an older binary may refuse the data.
+  # Bump deliberately and take a backup first. Empty = the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Credentials ───────────────────────────────────────────────────────
+auth:
+  # Secret holding the root password and every users[].passwordKey.
+  # Empty: the chart generates a Secret named <fullname>-credentials with
+  # random passwords and keeps it stable across upgrades (lookup + keep
+  # policy) -- convenient, but the values then exist only in the cluster.
+  # Set it to manage credentials yourself (external-secrets, a vault sync).
+  existingSecret: ""
+  rootPasswordKey: root-password
+  # Host part of the root account. The provisioning and backup Jobs connect
+  # over the pod network, so localhost is not enough.
+  #
+  # FIRST BOOT ONLY: the server creates root from the password above when the
+  # volume has no privileges database yet. Changing the Secret later does
+  # not change the password inside Dolt -- see "Rotating the root password"
+  # in the README.
+  rootHost: "%"
+
+# ── Databases ─────────────────────────────────────────────────────────
+# Created if missing. Names: letters, digits, underscore.
+#   - name: orders
+#   - name: orders_copy
+#     # Restore instead of creating empty, only when the database does not
+#     # exist yet. Any backup URL the SERVER can read: a path on the backup
+#     # volume (file:///backups/orders) or on the restore volume below
+#     # (file:///restore/orders).
+#     restoreFrom: "file:///restore/orders"
+databases: []
+
+# ── Users ─────────────────────────────────────────────────────────────
+# Created if missing; password and grants are re-applied on every upgrade, so
+# changing a password in the Secret and upgrading rotates it.
+#   - name: orders_app
+#     host: "%"                       # default "%"
+#     passwordKey: orders_app-password  # default "<name>-password"
+#     grants:                         # each is the text between GRANT and TO
+#       - "ALL PRIVILEGES ON `orders`.*"
+users: []
+
+# ── Server configuration ("parameter group") ──────────────────────────
+# Rendered into config.yaml. Any key `dolt sql-server --help` documents is
+# accepted. The chart owns and overrides: listener.host, listener.port,
+# data_dir, cfg_dir, privilege_file, branch_control_file, and metrics.host /
+# metrics.port (from the `metrics` block below).
+config:
+  log_level: info
+  log_format: text
+  behavior:
+    read_only: false
+    autocommit: true
+    # true = every SQL transaction commit is also a Dolt commit. Leave false
+    # unless you want one history entry per write.
+    dolt_transaction_commit: false
+    # Background garbage collection. Dolt's storage is append-only, so
+    # without it the volume only grows.
+    auto_gc_behavior:
+      enable: true
+      archive_level: 1
+  listener:
+    max_connections: 100
+  # system_variables:
+  #   max_allowed_packet: 67108864
+
+# Extra environment for the server container (list of EnvVar). Example: AWS
+# credentials for an s3:// backup URL or for Dolt remotes.
+extraEnv: []
+extraEnvFrom: []
+
+# ── Storage ───────────────────────────────────────────────────────────
+persistence:
+  # Pre-provisioned claim (static PVs). When empty the StatefulSet gets a
+  # volumeClaimTemplate and the cluster provisions the volume.
+  existingClaim: ""
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+# ── Backups ───────────────────────────────────────────────────────────
+# A CronJob asks the running server to sync every database to a backup URL.
+# The sync is online (no lock, no downtime) and incremental; the target holds
+# the full commit history of every branch, so a restore brings back history,
+# not just the latest rows.
+#
+# The target holds ONE copy, overwritten in place. For older points in time
+# either rely on Dolt history itself (it is all there) or snapshot the volume
+# the backups land on.
+backup:
+  enabled: false
+  schedule: "17 3 * * *"
+  timeZone: ""
+  # {database} is replaced per database. file:// paths are read and written
+  # by the SERVER, on the backup volume mounted at /backups.
+  urlTemplate: "file:///backups/{database}"
+  # Volume mounted at /backups in the server pod.
+  persistence:
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+  activeDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# ── Restore source ────────────────────────────────────────────────────
+# Mounts another claim read-only at /restore in the server pod, so
+# databases[].restoreFrom can point at backups taken by a DIFFERENT instance
+# (clone an instance, rehearse a restore, promote a copy).
+restore:
+  existingClaim: ""
+
+# ── Provisioning Job ──────────────────────────────────────────────────
+provision:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  # Finished Jobs are kept this long for their logs.
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# ── Networking ────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 3306
+  annotations: {}
+  # A second Service of type NodePort for clients outside the cluster.
+  external:
+    enabled: false
+    nodePort: null
+    annotations: {}
+
+# NetworkPolicy is ADDITIVE: the effective permission for a pod is the union
+# of every policy selecting it. In a namespace that already carries blanket
+# allows these rules add nothing and remove nothing; they are the enforcement
+# in a namespace without such allows, and they document intent everywhere.
+networkPolicy:
+  enabled: true
+  # Who may open SQL connections (NetworkPolicyPeer list). Default: any pod
+  # in the release namespace.
+  ingressFrom:
+    - podSelector: {}
+  # CIDRs allowed to reach SQL in addition to ingressFrom -- the clients of
+  # service.external. NodePort traffic keeps its original source address.
+  externalCidrs: []
+  # Who may scrape metrics.
+  metricsFrom:
+    - podSelector: {}
+  # Outbound HTTPS to public addresses, for Dolt remotes (dolt_push / pull /
+  # clone) or an object-store backup URL. DNS is always allowed.
+  egressInternet:
+    enabled: false
+
+# ── Observability ─────────────────────────────────────────────────────
+metrics:
+  enabled: true
+  port: 11228
+  # Extra labels on every exported series.
+  labels: {}
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: false
+    # Label(s) your Prometheus ruleSelector matches on.
+    labels: {}
+    # Fire when the last successful backup is older than this.
+    backupStaleSeconds: 129600
+    # Fraction of listener.max_connections.
+    connectionsWarnRatio: 0.8
+
+# ── Pod ───────────────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+# The server runs as this uid. fsGroup makes a dynamically provisioned volume
+# writable; hostPath-backed static PVs ignore fsGroup, so their directory
+# must be owned by this uid ahead of time.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# All three probes run a query through the server over loopback, so they
+# need no network path from the kubelet. First boot initializes the
+# privileges database; the startup budget covers that and a slow volume.
+probes:
+  startup:
+    periodSeconds: 5
+    timeoutSeconds: 10
+    failureThreshold: 60
+  readiness:
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
+
+terminationGracePeriodSeconds: 60
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

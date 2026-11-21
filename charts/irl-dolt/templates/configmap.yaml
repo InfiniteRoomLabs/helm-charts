@@ -1,0 +1,150 @@
+{{- include "irl-dolt.validate" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- include "irl-dolt.config" . | nindent 4 }}
+---
+# Scripts for the provisioning Job, the backup CronJob and `helm test`. They
+# are plain files rather than inline `command:` strings so the SQL below is
+# never parsed by a shell: grants contain backticks, and a backtick inside a
+# double-quoted shell string is a command substitution.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+data:
+  lib.sh: |
+    # Sourced. Every statement goes through the server as root over TCP;
+    # nothing here opens the data directory.
+    sqlc() {
+      dolt --host "$DOLT_HOST" --port "$DOLT_PORT" --no-tls -u root -p "$DOLT_ROOT_PASSWORD" sql "$@"
+    }
+    sqlc_db() {
+      local db=$1; shift
+      dolt --host "$DOLT_HOST" --port "$DOLT_PORT" --no-tls -u root -p "$DOLT_ROOT_PASSWORD" --use-db "$db" sql "$@"
+    }
+    # Blocks until the server answers a query. The last error is printed on
+    # timeout because "access denied" and "connection refused" need different
+    # fixes and both would otherwise read as "not ready".
+    wait_for_server() {
+      local i err
+      for i in $(seq 1 "${1:-60}"); do
+        if err=$(sqlc -q "select 1" 2>&1 >/dev/null); then return 0; fi
+        sleep 5
+      done
+      echo "server at ${DOLT_HOST}:${DOLT_PORT} did not answer: ${err}" >&2
+      return 1
+    }
+    # Names of the user databases, one per line.
+    list_databases() {
+      sqlc -r csv -q "show databases" | tail -n +2 | tr -d '\r' \
+        | grep -Ev '^(information_schema|mysql|dolt_cluster)$' || true
+    }
+
+  # One statement per line. __DOLT_PW_<n>__ is replaced with the escaped
+  # password of users[n] at run time; nothing else in this file is touched.
+  users.sql: |
+    {{- range $i, $u := .Values.users }}
+    {{- $host := default "%" $u.host }}
+    CREATE USER IF NOT EXISTS '{{ $u.name }}'@'{{ $host }}' IDENTIFIED BY '__DOLT_PW_{{ $i }}__';
+    ALTER USER '{{ $u.name }}'@'{{ $host }}' IDENTIFIED BY '__DOLT_PW_{{ $i }}__';
+    {{- range $u.grants }}
+    GRANT {{ . }} TO '{{ $u.name }}'@'{{ $host }}';
+    {{- end }}
+    {{- end }}
+
+  provision.sh: |
+    #!/bin/bash
+    # Additive reconcile of the declared databases and users. Never drops.
+    set -euo pipefail
+    . /scripts/lib.sh
+    wait_for_server
+
+    db_exists() {
+      [ "$(sqlc -r csv -q "select count(*) from information_schema.schemata where schema_name = '$1'" | tail -n 1 | tr -d '\r')" = "1" ]
+    }
+    {{- range .Values.databases }}
+
+    if db_exists {{ .name | squote }}; then
+      echo "database {{ .name }}: present"
+    {{- if .restoreFrom }}
+    else
+      echo "database {{ .name }}: restoring from {{ .restoreFrom }}"
+      sqlc -q "CALL DOLT_BACKUP('restore', '{{ .restoreFrom }}', '{{ .name }}')" >/dev/null
+    {{- else }}
+    else
+      echo "database {{ .name }}: creating"
+      sqlc -q 'CREATE DATABASE `{{ .name }}`' >/dev/null
+    {{- end }}
+    fi
+    {{- end }}
+    {{- if .Values.users }}
+
+    # Passwords are escaped for a single-quoted SQL string, then substituted
+    # into users.sql. The replacement is quoted so bash does not treat `&`
+    # in a password as "the matched text".
+    sql=$(cat /scripts/users.sql)
+    {{- range $i, $u := .Values.users }}
+    pw=${DOLT_USER_PASSWORD_{{ $i }}:?password for user {{ $u.name }} is empty}
+    pw=${pw//\\/\\\\}
+    pw=${pw//\'/\'\'}
+    sql=${sql//__DOLT_PW_{{ $i }}__/"$pw"}
+    {{- end }}
+    # One statement per invocation, so a failed statement fails the Job
+    # whatever the client does with the rest of a batch.
+    while IFS= read -r stmt; do
+      [ -n "$stmt" ] || continue
+      printf '%s\n' "$stmt" | sqlc >/dev/null
+    done <<<"$sql"
+    {{- range .Values.users }}
+    echo "user {{ .name }}@{{ default "%" .host }}: password and {{ len (default (list) .grants) }} grant(s) applied"
+    {{- end }}
+    {{- end }}
+    echo "provisioning complete"
+
+  backup.sh: |
+    #!/bin/bash
+    # Asks the server to sync each database to its backup URL. The server
+    # does the writing; this pod only issues the calls.
+    set -euo pipefail
+    . /scripts/lib.sh
+    wait_for_server
+    rc=0
+    count=0
+    for db in $(list_databases); do
+      url=${BACKUP_URL_TEMPLATE//\{database\}/"$db"}
+      if sqlc_db "$db" -q "CALL DOLT_BACKUP('sync-url', '${url}')" >/dev/null; then
+        echo "backed up ${db} -> ${url}"
+        count=$((count + 1))
+      else
+        echo "BACKUP FAILED for ${db} -> ${url}" >&2
+        rc=1
+      fi
+    done
+    echo "${count} database(s) backed up"
+    exit "$rc"
+
+  test.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    . /scripts/lib.sh
+    wait_for_server 24
+    sqlc -q "select dolt_version()"
+    present=$(list_databases)
+    {{- range .Values.databases }}
+    grep -qx {{ .name | squote }} <<<"$present" || { echo "missing database {{ .name }}" >&2; exit 1; }
+    {{- end }}
+    {{- range $i, $u := .Values.users }}
+    dolt --host "$DOLT_HOST" --port "$DOLT_PORT" --no-tls -u {{ $u.name | squote }} -p "$DOLT_USER_PASSWORD_{{ $i }}" sql -q "select current_user()" >/dev/null \
+      || { echo "user {{ $u.name }} cannot log in" >&2; exit 1; }
+    {{- end }}
+    echo "ok"

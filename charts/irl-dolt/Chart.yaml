@@ -1,0 +1,16 @@
+apiVersion: v2
+name: irl-dolt
+description: One Dolt SQL server instance per release (StatefulSet, declared databases and users, online backups, restore-from-backup, metrics and alerts) - a managed-database-style building block for the versioned MySQL-compatible database
+type: application
+version: 0.1.0
+appVersion: "2.7.5"
+keywords:
+  - dolt
+  - database
+  - mysql
+  - version-control
+maintainers:
+  - name: Infinite Room Labs
+home: https://github.com/InfiniteRoomLabs/helm-charts
+sources:
+  - https://github.com/dolthub/dolt
