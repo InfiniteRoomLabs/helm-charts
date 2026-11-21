@@ -85,8 +85,8 @@ SQL; the declared lists stay boring.
 {{- if not (regexMatch "^[A-Za-z0-9_]+$" (toString .name)) }}
 {{- fail (printf "databases[].name %q: only letters, digits and underscore are allowed" (toString .name)) }}
 {{- end }}
-{{- if and .restoreFrom (contains "'" .restoreFrom) }}
-{{- fail (printf "databases[%s].restoreFrom must not contain a single quote" .name) }}
+{{- if and .restoreFrom (or (contains "'" .restoreFrom) (contains "\\" .restoreFrom)) }}
+{{- fail (printf "databases[%s].restoreFrom must not contain a single quote or a backslash" .name) }}
 {{- end }}
 {{- end }}
 {{- range .Values.users }}
@@ -105,8 +105,8 @@ SQL; the declared lists stay boring.
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if contains "'" .Values.backup.urlTemplate }}
-{{- fail "backup.urlTemplate must not contain a single quote" }}
+{{- if or (contains "'" .Values.backup.urlTemplate) (contains "\\" .Values.backup.urlTemplate) }}
+{{- fail "backup.urlTemplate must not contain a single quote or a backslash" }}
 {{- end }}
 {{- if and .Values.service.external.enabled (not .Values.service.external.nodePort) }}
 {{- fail "service.external.nodePort is required when service.external.enabled" }}

@@ -80,6 +80,8 @@ Doing step 2 first leaves the probes, the provisioning Job and the backup CronJo
 
 With `backup.enabled` the server pod mounts a backup volume at `/backups` and a CronJob asks the server to sync every database to `backup.urlTemplate` (default `file:///backups/{database}`). All user databases are included, also ones created over SQL and not declared in the values.
 
+The backup job runs as root and builds a SQL statement and a path from each database name, so it only handles names made of letters, digits, underscore and hyphen. A database with any other name is skipped and the Job fails, so the gap is visible instead of silent.
+
 A Dolt backup contains the full history of every branch plus uncommitted working changes. It is a single copy, updated in place: the backup volume always holds the state as of the last run. Keep older states by snapshotting that volume, or simply use Dolt history, which a backup preserves.
 
 Restore into the same instance under a new name:

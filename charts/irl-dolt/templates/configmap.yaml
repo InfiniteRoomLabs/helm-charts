@@ -120,7 +120,18 @@ data:
     wait_for_server
     rc=0
     count=0
-    for db in $(list_databases); do
+    # Database names come from the server, and any user allowed to CREATE
+    # DATABASE chooses them. This script runs as root and puts the name into
+    # a SQL string and a path, so a name is only used if it is plain. A
+    # database with any other name is NOT backed up and fails the Job, which
+    # is loud on purpose.
+    while IFS= read -r db; do
+      [ -n "$db" ] || continue
+      if [[ ! $db =~ ^[A-Za-z0-9_-]+$ ]]; then
+        printf 'SKIPPED database with an unsafe name (not backed up): %q\n' "$db" >&2
+        rc=1
+        continue
+      fi
       url=${BACKUP_URL_TEMPLATE//\{database\}/"$db"}
       if sqlc_db "$db" -q "CALL DOLT_BACKUP('sync-url', '${url}')" >/dev/null; then
         echo "backed up ${db} -> ${url}"
@@ -129,7 +140,7 @@ data:
         echo "BACKUP FAILED for ${db} -> ${url}" >&2
         rc=1
       fi
-    done
+    done < <(list_databases)
     echo "${count} database(s) backed up"
     exit "$rc"
 
