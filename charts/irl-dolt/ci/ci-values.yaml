@@ -1,0 +1,41 @@
+# Values for `ct install` on the throwaway kind cluster in CI.
+# Exercises the paths the defaults leave off: declared databases and users
+# (so the provisioning Job and `helm test` have something to prove), the
+# generated credentials Secret, and the backup volume + CronJob. A password
+# key and a grant with backticks are included on purpose.
+
+databases:
+  - name: ci_app
+  - name: ci_other
+
+users:
+  - name: ci_app
+    grants:
+      - "ALL PRIVILEGES ON `ci_app`.*"
+  - name: ci_ro
+    host: "%"
+    passwordKey: readonly-password
+    grants:
+      - "SELECT ON `ci_app`.*"
+      - "SELECT ON `ci_other`.*"
+
+config:
+  listener:
+    max_connections: 50
+  system_variables:
+    max_allowed_packet: 67108864
+
+backup:
+  enabled: true
+  persistence:
+    size: 1Gi
+
+persistence:
+  size: 1Gi
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi

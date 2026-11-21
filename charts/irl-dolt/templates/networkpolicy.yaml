@@ -1,0 +1,100 @@
+{{- if .Values.networkPolicy.enabled }}
+# ============================================================================
+# NETWORKPOLICY IS ADDITIVE. There is no deny primitive: a pod's effective
+# permission is the UNION of every policy selecting it. In a namespace that
+# already has blanket allows, the rules below take nothing away -- they
+# document intent, and they are the enforcement in a namespace without such
+# allows. They select the SERVER pod only; the provisioning, backup and test
+# pods are clients and are left to the namespace's own policy.
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-allow-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-dolt.serverSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+        {{- range .Values.networkPolicy.externalCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 3306
+    {{- if .Values.metrics.enabled }}
+    - from:
+        {{- toYaml .Values.networkPolicy.metricsFrom | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+    {{- end }}
+---
+# DNS only. namespaceSelector and podSelector sit in ONE `to` element so they
+# are ANDed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-dolt.serverSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.networkPolicy.egressInternet.enabled }}
+---
+# 443/tcp to PUBLIC addresses only: Dolt remotes and object-store backups.
+# Private, CGNAT and link-local ranges stay closed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}-allow-egress-internet
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "irl-dolt.serverSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
+{{- end }}

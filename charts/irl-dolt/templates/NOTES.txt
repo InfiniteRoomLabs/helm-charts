@@ -1,0 +1,16 @@
+Dolt instance {{ include "irl-dolt.fullname" . }} ({{ include "irl-dolt.image" . }})
+
+  In-cluster:  {{ include "irl-dolt.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}  (MySQL protocol)
+{{- if .Values.service.external.enabled }}
+  External:    <any node address>:{{ .Values.service.external.nodePort }}
+{{- end }}
+  Credentials: Secret {{ include "irl-dolt.secretName" . }} (root key: {{ .Values.auth.rootPasswordKey }})
+{{- if .Values.backup.enabled }}
+  Backups:     CronJob {{ include "irl-dolt.fullname" . }}-backup, "{{ .Values.backup.schedule }}", to {{ .Values.backup.urlTemplate }}
+{{- else }}
+  Backups:     DISABLED (backup.enabled=false)
+{{- end }}
+
+Check it:      helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+SQL shell:     kubectl exec -it -n {{ .Release.Namespace }} {{ include "irl-dolt.fullname" . }}-0 -- dolt sql
+               (run in the pod, this is a local superuser session and needs no password)

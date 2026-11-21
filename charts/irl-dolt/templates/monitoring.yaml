@@ -1,0 +1,79 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "irl-dolt.serverSelectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRule.enabled }}
+{{- $fullname := include "irl-dolt.fullname" . }}
+{{- $sel := printf "namespace=%q, service=%q" .Release.Namespace $fullname }}
+{{- $maxConn := dig "listener" "max_connections" 1000 .Values.config }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ $fullname }}.dolt
+      rules:
+        - alert: DoltInstanceDown
+          expr: absent(up{ {{ $sel }} } == 1)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Dolt instance {{ $fullname }} is not answering metrics scrapes"
+            description: "No healthy scrape target for {{ $fullname }} in {{ .Release.Namespace }} for 5 minutes. The server pod is down, not Ready, or unreachable."
+        - alert: DoltConnectionsNearLimit
+          expr: max(dss_concurrent_connections{ {{ $sel }} }) > {{ mulf (float64 $maxConn) (float64 .Values.metrics.prometheusRule.connectionsWarnRatio) }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dolt instance {{ $fullname }} is close to max_connections"
+            description: "More than {{ .Values.metrics.prometheusRule.connectionsWarnRatio }} of listener.max_connections ({{ $maxConn }}) has been in use for 10 minutes."
+        {{- if .Values.backup.enabled }}
+        # Both backup rules read kube-state-metrics, not Dolt.
+        - alert: DoltBackupStale
+          expr: time() - max(kube_cronjob_status_last_successful_time{namespace={{ .Release.Namespace | quote }}, cronjob="{{ $fullname }}-backup"}) > {{ int .Values.metrics.prometheusRule.backupStaleSeconds }}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dolt instance {{ $fullname }} has no recent successful backup"
+            description: "The last successful run of CronJob {{ $fullname }}-backup is older than {{ int .Values.metrics.prometheusRule.backupStaleSeconds }} seconds."
+        - alert: DoltBackupFailed
+          expr: max(kube_job_status_failed{namespace={{ .Release.Namespace | quote }}, job_name=~"{{ $fullname }}-backup-.+"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A backup Job of Dolt instance {{ $fullname }} failed"
+            description: "At least one retained Job of CronJob {{ $fullname }}-backup is in the failed state. Read its log before the history limit prunes it."
+        {{- end }}
+{{- end }}

@@ -1,0 +1,158 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "irl-dolt.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "irl-dolt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  # One server per release. Two pods on one data directory corrupt it, and
+  # two pods on two directories are two unrelated databases behind one
+  # Service; neither is a replica.
+  replicas: 1
+  serviceName: {{ include "irl-dolt.fullname" . }}-headless
+  selector:
+    matchLabels:
+      {{- include "irl-dolt.serverSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "irl-dolt.serverSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # config.yaml is read once at startup: roll the pod when it changes.
+        checksum/config: {{ include "irl-dolt.config" . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dolt
+          image: {{ include "irl-dolt.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The image's entrypoint script is bypassed on purpose (it assumes
+          # root). tini stays as pid 1 so SIGTERM reaches the server and the
+          # exec probes' children are reaped.
+          command: ["tini", "--", "dolt", "sql-server", "--config", "/etc/dolt/config.yaml"]
+          workingDir: /var/lib/dolt
+          env:
+            # dolt refuses to start without an existing HOME.
+            - name: HOME
+              value: /home/dolt
+            # Read by the server only while the volume has no privileges
+            # database, i.e. on first boot.
+            - name: DOLT_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "irl-dolt.secretName" . }}
+                  key: {{ .Values.auth.rootPasswordKey }}
+            - name: DOLT_ROOT_HOST
+              value: {{ .Values.auth.rootHost | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: mysql
+              containerPort: 3306
+            {{- if .Values.metrics.enabled }}
+            - name: http-metrics
+              containerPort: {{ .Values.metrics.port }}
+            {{- end }}
+          startupProbe:
+            {{- include "irl-dolt.probeExec" . | nindent 12 }}
+            {{- toYaml .Values.probes.startup | nindent 12 }}
+          readinessProbe:
+            {{- include "irl-dolt.probeExec" . | nindent 12 }}
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          livenessProbe:
+            {{- include "irl-dolt.probeExec" . | nindent 12 }}
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/dolt
+            - name: config
+              mountPath: /etc/dolt
+              readOnly: true
+            - name: home
+              mountPath: /home/dolt
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.backup.enabled }}
+            - name: backup
+              mountPath: /backups
+            {{- end }}
+            {{- if .Values.restore.existingClaim }}
+            - name: restore
+              mountPath: /restore
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "irl-dolt.fullname" . }}-config
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.backup.enabled }}
+        - name: backup
+          persistentVolumeClaim:
+            claimName: {{ include "irl-dolt.backupClaim" . }}
+        {{- end }}
+        {{- if .Values.restore.existingClaim }}
+        - name: restore
+          persistentVolumeClaim:
+            claimName: {{ .Values.restore.existingClaim }}
+            readOnly: true
+        {{- end }}
+        {{- if .Values.persistence.existingClaim }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+        {{- end }}
+  {{- if not .Values.persistence.existingClaim }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "irl-dolt.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes: [{{ .Values.persistence.accessMode | quote }}]
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+  {{- end }}
