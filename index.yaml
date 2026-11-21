@@ -52,6 +52,29 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-caddy-0.1.0/irl-caddy-0.1.0.tgz
     version: 0.1.0
+  irl-dolt:
+  - apiVersion: v2
+    appVersion: 2.7.5
+    created: "2026-11-21T01:38:58.471869277Z"
+    description: One Dolt SQL server instance per release (StatefulSet, declared databases
+      and users, online backups, restore-from-backup, metrics and alerts) - a managed-database-style
+      building block for the versioned MySQL-compatible database
+    digest: 6bdf0036d27f728ed4dc888cdd32bd484d3c6552a36136bfceffdf65e8c2e71d
+    home: https://github.com/InfiniteRoomLabs/helm-charts
+    keywords:
+    - dolt
+    - database
+    - mysql
+    - version-control
+    maintainers:
+    - name: Infinite Room Labs
+    name: irl-dolt
+    sources:
+    - https://github.com/dolthub/dolt
+    type: application
+    urls:
+    - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-dolt-0.1.0/irl-dolt-0.1.0.tgz
+    version: 0.1.0
   irl-garage:
   - apiVersion: v2
     appVersion: 1.3.1
@@ -893,4 +916,4 @@ entries:
     urls:
     - https://github.com/InfiniteRoomLabs/helm-charts/releases/download/irl-wotlk-0.1.0/irl-wotlk-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-01T22:07:02.065529397Z"
+generated: "2026-11-21T01:38:58.471900572Z"
